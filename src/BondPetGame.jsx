@@ -8,24 +8,91 @@ const BondPetGame = () => {
   const [relationshipMode, setRelationshipMode] = useState(null);
   const [selectedPetType, setSelectedPetType] = useState(null);
   const [gameData, setGameData] = useState({
-    pet: { name: 'Buddy', type: null, happiness: 50, level: 1 },
+    pet: { name: 'Buddy', type: 'dog', happiness: 50, level: 1 },
     inventory: [],
     coins: 0,
     puzzlesCompleted: 0,
-    sharedProgress: 0
+    sharedProgress: 0,
+    unlockedPets: ['dog'],
+    gamesWon: 0
   });
 
   const petTypes = [
-    { id: 'dog', name: 'Dog', emoji: '🐶', happy: '🐶', neutral: '🐕', sad: '😢', excited: '😎' },
-    { id: 'cat', name: 'Cat', emoji: '🐱', happy: '😸', neutral: '🐈', sad: '😿', excited: '😻' },
-    { id: 'bunny', name: 'Bunny', emoji: '🐰', happy: '😊', neutral: '🐇', sad: '😔', excited: '🤗' },
-    { id: 'panda', name: 'Panda', emoji: '🐼', happy: '😊', neutral: '🐾', sad: '😟', excited: '🤩' },
-    { id: 'bear', name: 'Bear', emoji: '🐻', happy: '😊', neutral: '🧸', sad: '😞', excited: '🤗' },
-    { id: 'fox', name: 'Fox', emoji: '🦊', happy: '😊', neutral: '🦊', sad: '😕', excited: '😎' },
-    { id: 'penguin', name: 'Penguin', emoji: '🐧', happy: '😊', neutral: '🐧', sad: '😢', excited: '🤩' },
-    { id: 'unicorn', name: 'Unicorn', emoji: '🦄', happy: '😊', neutral: '🦄', sad: '😔', excited: '✨' }
+    { 
+      id: 'dog', name: 'Buddy', emoji: '🐶', happy: '🐶', neutral: '🐕', sad: '😢', excited: '😎',
+      cost: 0, unlocked: true, unlockCondition: 'Starting pet',
+      description: 'Your loyal companion from the start!'
+    },
+    { 
+      id: 'cat', name: 'Whiskers', emoji: '🐱', happy: '😸', neutral: '🐈', sad: '😿', excited: '😻',
+      cost: 100, unlocked: false, unlockCondition: 'Earn 100 coins',
+      description: 'A playful cat friend!'
+    },
+    { 
+      id: 'bunny', name: 'Hopper', emoji: '🐰', happy: '😊', neutral: '🐇', sad: '😔', excited: '🤗',
+      cost: 200, unlocked: false, unlockCondition: 'Complete 5 puzzles',
+      description: 'A cute and energetic bunny!'
+    },
+    { 
+      id: 'panda', name: 'Bamboo', emoji: '🐼', happy: '😊', neutral: '🐾', sad: '😟', excited: '🤩',
+      cost: 300, unlocked: false, unlockCondition: 'Reach 50% shared progress',
+      description: 'A gentle and friendly panda!'
+    },
+    { 
+      id: 'bear', name: 'Honey', emoji: '🐻', happy: '😊', neutral: '🧸', sad: '😞', excited: '🤗',
+      cost: 400, unlocked: false, unlockCondition: 'Earn 500 coins',
+      description: 'A cuddly bear friend!'
+    },
+    { 
+      id: 'fox', name: 'Swift', emoji: '🦊', happy: '😊', neutral: '🦊', sad: '😕', excited: '😎',
+      cost: 500, unlocked: false, unlockCondition: 'Win 10 games',
+      description: 'A clever and quick fox!'
+    },
+    { 
+      id: 'penguin', name: 'Waddle', emoji: '🐧', happy: '😊', neutral: '🐧', sad: '😢', excited: '🤩',
+      cost: 600, unlocked: false, unlockCondition: 'Reach 75% shared progress',
+      description: 'A cool and charming penguin!'
+    },
+    { 
+      id: 'unicorn', name: 'Sparkle', emoji: '🦄', happy: '😊', neutral: '🦄', sad: '😔', excited: '✨',
+      cost: 1000, unlocked: false, unlockCondition: 'Reach 100% shared progress',
+      description: 'A magical unicorn companion!'
+    },
+    { 
+      id: 'dragon', name: 'Flame', emoji: '🐉', happy: '😊', neutral: '🐲', sad: '😤', excited: '🔥',
+      cost: 1500, unlocked: false, unlockCondition: 'Earn 2000 coins',
+      description: 'A powerful dragon friend!'
+    },
+    { 
+      id: 'phoenix', name: 'Ember', emoji: '🔥', happy: '😊', neutral: '🦅', sad: '😔', excited: '🌟',
+      cost: 2000, unlocked: false, unlockCondition: 'Complete 50 puzzles',
+      description: 'A legendary phoenix companion!'
+    }
   ];
+  
+  const [unlockedPets, setUnlockedPets] = useState(['dog']);
 
+  // Puzzle games states (match-3)
+  const [puzzleBoard, setPuzzleBoard] = useState([]);
+  const [selectedCell, setSelectedCell] = useState(null);
+  const [score, setScore] = useState(0);
+  const [moves, setMoves] = useState(25);
+  const [combo, setCombo] = useState(0);
+  const [specialPieces, setSpecialPieces] = useState({});
+  const [powerups, setPowerups] = useState({ shuffle: 1, hammer: 2, colorBomb: 1 });
+  const [selectedPowerup, setSelectedPowerup] = useState(null);
+  const [targetScore, setTargetScore] = useState(1000);
+  const [animating, setAnimating] = useState(false);
+  const [matchAnimations, setMatchAnimations] = useState(new Set());
+
+  const colors = ['🔴', '🔵', '🟢', '🟡', '🟣', '🟠'];
+  const SPECIAL_TYPES = {
+    ROCKET_H: '🚀→',
+    ROCKET_V: '🚀↓',
+    BOMB: '💣',
+    RAINBOW: '🌈'
+  };
+  
   // Brick games states
   const [brickGameType, setBrickGameType] = useState(null); // 'tetris', 'snake', 'brickbreaker'
   
@@ -66,6 +133,44 @@ const BondPetGame = () => {
   // Card games states
   const [neverHaveIEverIndex, setNeverHaveIEverIndex] = useState(0);
   const [relationshipExplorerIndex, setRelationshipExplorerIndex] = useState(0);
+
+  // Advanced puzzle games states
+  const [puzzleGameType, setPuzzleGameType] = useState(null);
+  
+  // Tile matching (Mahjong-style) states
+  const [tileBoard, setTileBoard] = useState([]);
+  const [tileSelected, setTileSelected] = useState(null);
+  const [tileScore, setTileScore] = useState(0);
+  
+  // Word puzzle states
+  const [wordGrid, setWordGrid] = useState([]);
+  const [wordFound, setWordFound] = useState([]);
+  const [wordList, setWordList] = useState([]);
+  
+  // Jigsaw puzzle states
+  const [jigsawPieces, setJigsawPieces] = useState([]);
+  const [jigsawProgress, setJigsawProgress] = useState(0);
+  
+  // Logic puzzle states
+  const [logicPuzzle, setLogicPuzzle] = useState(null);
+  
+  // Escape room states
+  const [escapeRoom, setEscapeRoom] = useState(null);
+  const [escapeInventory, setEscapeInventory] = useState([]);
+
+  // Classic arcade games states
+  const [pacmanGame, setPacmanGame] = useState(null);
+  const [pacmanScore, setPacmanScore] = useState(0);
+  const [pacmanLives, setPacmanLives] = useState(3);
+  const [pacmanLevel, setPacmanLevel] = useState(1);
+  const [pacmanDirection, setPacmanDirection] = useState('right');
+  const [pacmanPos, setPacmanPos] = useState({ x: 14, y: 23 });
+  
+  const [jetpackGame, setJetpackGame] = useState(null);
+  const [jetpackScore, setJetpackScore] = useState(0);
+  const [jetpackY, setJetpackY] = useState(200);
+  const [jetpackObstacles, setJetpackObstacles] = useState([]);
+  const [jetpackGameOver, setJetpackGameOver] = useState(false);
 
   // Tetris pieces shapes
   const TETRIS_SHAPES = [
@@ -225,8 +330,8 @@ const BondPetGame = () => {
     let attempts = 0;
     do {
       board = Array(8).fill(0).map(() => 
-        Array(8).fill(0).map(() => colors[Math.floor(Math.random() * colors.length)])
-      );
+      Array(8).fill(0).map(() => colors[Math.floor(Math.random() * colors.length)])
+    );
       attempts++;
     } while (hasInitialMatches(board) && attempts < 50);
     
@@ -461,7 +566,7 @@ const BondPetGame = () => {
           const color = newBoard[i][j];
           for (let l = j; l < j + len; l++) {
             if (!matchSet.has(`${i},${l}`)) {
-              matches.push([i, l]);
+            matches.push([i, l]);
               matchSet.add(`${i},${l}`);
             }
           }
@@ -666,6 +771,43 @@ const BondPetGame = () => {
     }
   };
 
+  const checkPetUnlocks = () => {
+    const newlyUnlocked = [];
+    petTypes.forEach(pet => {
+      if (gameData.unlockedPets.includes(pet.id)) return;
+      
+      let shouldUnlock = false;
+      if (pet.unlockCondition.toLowerCase().includes('coins')) {
+        const coinsNeeded = parseInt(pet.unlockCondition.match(/\d+/)?.[0] || '0');
+        if (gameData.coins >= coinsNeeded) shouldUnlock = true;
+      } else if (pet.unlockCondition.toLowerCase().includes('puzzles') || pet.unlockCondition.toLowerCase().includes('complete')) {
+        const puzzlesNeeded = parseInt(pet.unlockCondition.match(/\d+/)?.[0] || '0');
+        if (gameData.puzzlesCompleted >= puzzlesNeeded) shouldUnlock = true;
+      } else if (pet.unlockCondition.toLowerCase().includes('shared progress') || pet.unlockCondition.toLowerCase().includes('reach')) {
+        const progressNeeded = parseInt(pet.unlockCondition.match(/\d+/)?.[0] || '0');
+        if (gameData.sharedProgress >= progressNeeded) shouldUnlock = true;
+      } else if (pet.unlockCondition.toLowerCase().includes('games') || pet.unlockCondition.toLowerCase().includes('win')) {
+        const gamesNeeded = parseInt(pet.unlockCondition.match(/\d+/)?.[0] || '0');
+        if (gameData.gamesWon >= gamesNeeded) shouldUnlock = true;
+      }
+      
+      if (shouldUnlock && !gameData.unlockedPets.includes(pet.id)) {
+        newlyUnlocked.push(pet.id);
+      }
+    });
+    
+    if (newlyUnlocked.length > 0) {
+      setGameData(prev => ({
+        ...prev,
+        unlockedPets: [...prev.unlockedPets, ...newlyUnlocked]
+      }));
+    }
+  };
+
+  useEffect(() => {
+    checkPetUnlocks();
+  }, [gameData.coins, gameData.puzzlesCompleted, gameData.sharedProgress, gameData.gamesWon]);
+
   const getPetMood = () => {
     const petType = petTypes.find(p => p.id === gameData.pet.type) || petTypes[0];
     const h = gameData.pet.happiness;
@@ -677,6 +819,28 @@ const BondPetGame = () => {
     if (h > 50) return petType.happy;
     if (h > 30) return petType.neutral;
     return petType.sad;
+  };
+
+  const buyPet = (pet) => {
+    if (gameData.unlockedPets.includes(pet.id)) {
+      // Switch to this pet
+      setGameData(prev => ({
+        ...prev,
+        pet: { ...prev.pet, type: pet.id, name: pet.name }
+      }));
+      setSelectedPetType(pet.id);
+      setGameState('pet');
+    } else if (gameData.coins >= pet.cost) {
+      // Buy and unlock pet
+      setGameData(prev => ({
+        ...prev,
+        coins: prev.coins - pet.cost,
+        unlockedPets: [...prev.unlockedPets, pet.id],
+        pet: { ...prev.pet, type: pet.id, name: pet.name }
+      }));
+      setSelectedPetType(pet.id);
+      setGameState('pet');
+    }
   };
 
   const getPetMessage = () => {
@@ -692,41 +856,86 @@ const BondPetGame = () => {
   if (gameState === 'petSelection') {
     return (
       <div className="min-h-screen bg-gradient-to-br from-pink-400 via-purple-400 to-blue-400 p-8 flex items-center justify-center">
-        <div className="bg-white rounded-3xl p-8 max-w-2xl w-full shadow-2xl">
+        <div className="bg-white rounded-3xl p-8 max-w-4xl w-full shadow-2xl">
           <div className="text-center mb-6">
             <h2 className="text-3xl font-bold text-purple-600 mb-2">Choose Your Pet! 🐾</h2>
             <p className="text-gray-600">Pick a pet companion for your journey together</p>
+            <div className="text-xl font-bold text-yellow-600 mt-2">🪙 {gameData.coins} Coins</div>
           </div>
           
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
-            {petTypes.map((pet) => (
-              <button
-                key={pet.id}
-                onClick={() => {
-                  setSelectedPetType(pet.id);
-                  setGameData(prev => ({
-                    ...prev,
-                    pet: { ...prev.pet, type: pet.id, name: pet.name }
-                  }));
-                  setGameState('pet');
-                }}
-                className={`p-4 sm:p-6 rounded-xl border-4 transition-all active:scale-95 min-h-[120px] ${
-                  selectedPetType === pet.id
-                    ? 'border-purple-500 bg-purple-50 shadow-lg'
-                    : 'border-gray-200 bg-white active:border-purple-300'
-                }`}
-              >
-                <div className="text-5xl sm:text-6xl mb-2">{pet.emoji}</div>
-                <div className="font-semibold text-gray-800 text-sm sm:text-base">{pet.name}</div>
-              </button>
-            ))}
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
+            {petTypes.map((pet) => {
+              const isUnlocked = gameData.unlockedPets.includes(pet.id);
+              const canAfford = gameData.coins >= pet.cost;
+              
+              return (
+                <div
+                  key={pet.id}
+                  className={`p-4 sm:p-6 rounded-xl border-4 transition-all min-h-[140px] relative ${
+                    gameData.pet.type === pet.id
+                      ? 'border-purple-500 bg-purple-50 shadow-lg ring-4 ring-purple-200'
+                      : isUnlocked
+                      ? 'border-green-300 bg-white active:border-purple-300 active:scale-95 cursor-pointer'
+                      : 'border-gray-300 bg-gray-100 opacity-60'
+                  }`}
+                  onClick={() => {
+                    if (isUnlocked) {
+                      setGameData(prev => ({
+                        ...prev,
+                        pet: { ...prev.pet, type: pet.id, name: pet.name }
+                      }));
+                      setSelectedPetType(pet.id);
+                      setGameState('pet');
+                    } else if (canAfford) {
+                      buyPet(pet);
+                    }
+                  }}
+                >
+                  {!isUnlocked && (
+                    <div className="absolute top-1 right-1 text-2xl">🔒</div>
+                  )}
+                  {gameData.pet.type === pet.id && (
+                    <div className="absolute top-1 left-1 text-lg">✓</div>
+                  )}
+                  
+                  <div className="text-5xl sm:text-6xl mb-2">{pet.emoji}</div>
+                  <div className="font-semibold text-gray-800 text-sm sm:text-base mb-1">{pet.name}</div>
+                  
+                  {!isUnlocked ? (
+                    <div className="text-xs text-gray-600 mt-2">
+                      {pet.cost > 0 && (
+                        <div className="mb-1">🪙 {pet.cost} coins</div>
+                      )}
+                      <div className="text-[10px] leading-tight">{pet.unlockCondition}</div>
+                    </div>
+                  ) : (
+                    <button
+                      className={`w-full mt-2 py-2 rounded-lg font-semibold text-xs sm:text-sm ${
+                        gameData.pet.type === pet.id
+                          ? 'bg-purple-500 text-white'
+                          : 'bg-green-500 text-white active:bg-green-600'
+                      }`}
+                    >
+                      {gameData.pet.type === pet.id ? 'Active' : 'Select'}
+                    </button>
+                  )}
+                </div>
+              );
+            })}
           </div>
 
-          <button
-            onClick={() => setGameState('welcome')}
-            className="w-full mt-6 bg-gray-400 text-white py-3 rounded-xl font-semibold hover:bg-gray-500">
-            ← Back
-          </button>
+          <div className="grid grid-cols-2 gap-3 mt-6">
+            <button
+              onClick={() => setGameState('welcome')}
+              className="bg-gray-400 text-white py-3 rounded-xl font-semibold active:bg-gray-500">
+              ← Back
+            </button>
+            <button
+              onClick={() => setGameState('petShop')}
+              className="bg-yellow-500 text-white py-3 rounded-xl font-semibold active:bg-yellow-600">
+              🛍️ Pet Shop
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -835,13 +1044,28 @@ const BondPetGame = () => {
                   </div>
                 </div>
               )}
+
+              <div className="mt-4">
+                <button onClick={() => setGameState('petSelection')}
+                  className="bg-purple-500 text-white px-4 py-2 rounded-lg font-semibold active:bg-purple-600 text-sm">
+                  🐾 Change Pet ({gameData.unlockedPets.length}/{petTypes.length} unlocked)
+                </button>
+              </div>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
+            <button onClick={() => setGameState('puzzleGames')}
+              className="bg-gradient-to-r from-pink-500 to-purple-500 text-white py-4 sm:py-4 rounded-xl font-semibold active:scale-95 transition-all flex items-center justify-center gap-2 text-base sm:text-lg min-h-[56px]">
+              <Star size={20} /> Puzzles 💕
+            </button>
             <button onClick={() => setGameState('brickGames')}
               className="bg-gradient-to-r from-purple-500 to-blue-500 text-white py-4 sm:py-4 rounded-xl font-semibold active:scale-95 transition-all flex items-center justify-center gap-2 text-base sm:text-lg min-h-[56px]">
-              <Star size={20} /> Brick Games
+              🧱 Brick Games
+            </button>
+            <button onClick={() => setGameState('arcadeGames')}
+              className="bg-gradient-to-r from-yellow-500 to-orange-500 text-white py-4 sm:py-4 rounded-xl font-semibold active:scale-95 transition-all flex items-center justify-center gap-2 text-base sm:text-lg min-h-[56px]">
+              🕹️ Arcade
             </button>
             <button onClick={() => setGameState('boardGames')}
               className="bg-gradient-to-r from-orange-500 to-red-500 text-white py-4 sm:py-4 rounded-xl font-semibold active:scale-95 transition-all flex items-center justify-center gap-2 text-base sm:text-lg min-h-[56px]">
@@ -851,6 +1075,99 @@ const BondPetGame = () => {
               className="bg-gradient-to-r from-green-500 to-teal-500 text-white py-4 sm:py-4 rounded-xl font-semibold active:scale-95 transition-all flex items-center justify-center gap-2 text-base sm:text-lg min-h-[56px]">
               <ShoppingBag size={20} /> Shop
             </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (gameState === 'petShop') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-yellow-200 via-orange-200 to-pink-200 p-4">
+        <div className="max-w-5xl mx-auto">
+          <div className="bg-white rounded-2xl p-6 mb-4 shadow-lg">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-3xl font-bold text-yellow-600">🛍️ Pet Shop</h2>
+              <div className="text-right">
+                <div className="text-2xl font-bold text-yellow-600">🪙 {gameData.coins}</div>
+                <button onClick={() => setGameState('petSelection')}
+                  className="bg-gray-500 text-white px-4 py-2 rounded-lg font-semibold active:bg-gray-600 text-sm mt-2">
+                  ← Back
+                </button>
+              </div>
+            </div>
+            
+            <div className="mb-4 text-center">
+              <p className="text-gray-600">Buy pets with coins or unlock them by completing challenges!</p>
+            </div>
+            
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+              {petTypes.map((pet) => {
+                const isUnlocked = gameData.unlockedPets.includes(pet.id);
+                const canAfford = gameData.coins >= pet.cost;
+                const isOwned = isUnlocked;
+                const isActive = gameData.pet.type === pet.id;
+                
+                return (
+                  <div
+                    key={pet.id}
+                    className={`p-4 rounded-xl border-4 transition-all relative ${
+                      isActive
+                        ? 'border-purple-500 bg-purple-50 shadow-lg ring-4 ring-purple-200'
+                        : isUnlocked
+                        ? 'border-green-300 bg-white'
+                        : 'border-gray-300 bg-gray-100 opacity-75'
+                    }`}
+                  >
+                    {!isUnlocked && <div className="absolute top-1 right-1 text-xl">🔒</div>}
+                    {isActive && <div className="absolute top-1 left-1">✓</div>}
+                    
+                    <div className="text-6xl text-center mb-2">{pet.emoji}</div>
+                    <div className="font-bold text-center mb-1 text-sm">{pet.name}</div>
+                    <div className="text-xs text-gray-600 text-center mb-3 min-h-[40px]">{pet.description}</div>
+                    
+                    {!isUnlocked ? (
+                      <div>
+                        <div className="text-center mb-2">
+                          <div className="text-lg font-bold text-yellow-600">🪙 {pet.cost}</div>
+                        </div>
+                        <div className="text-xs text-gray-500 text-center mb-3 min-h-[30px]">
+                          {pet.unlockCondition}
+                        </div>
+                        <button
+                          onClick={() => buyPet(pet)}
+                          disabled={!canAfford}
+                          className={`w-full py-2 rounded-lg font-semibold text-sm min-h-[40px] ${
+                            canAfford
+                              ? 'bg-yellow-500 text-white active:bg-yellow-600'
+                              : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                          }`}
+                        >
+                          {canAfford ? 'Buy Now' : 'Locked'}
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => {
+                          setGameData(prev => ({
+                            ...prev,
+                            pet: { ...prev.pet, type: pet.id, name: pet.name }
+                          }));
+                          setGameState('pet');
+                        }}
+                        className={`w-full py-2 rounded-lg font-semibold text-sm min-h-[40px] ${
+                          isActive
+                            ? 'bg-purple-500 text-white'
+                            : 'bg-green-500 text-white active:bg-green-600'
+                        }`}
+                      >
+                        {isActive ? 'Active' : 'Switch To'}
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
       </div>
@@ -926,18 +1243,19 @@ const BondPetGame = () => {
     newBoard[index] = ticTacToePlayer;
     setTicTacToeBoard(newBoard);
     
-    const winner = checkTicTacToeWinner(newBoard);
-    if (winner) {
-      setTicTacToeWinner(winner);
-      if (winner !== 'tie') {
-        const coinsEarned = 30;
-        setGameData(prev => ({
-          ...prev,
-          coins: prev.coins + coinsEarned,
-          pet: { ...prev.pet, happiness: Math.min(100, prev.pet.happiness + 5) },
-          sharedProgress: Math.min(100, prev.sharedProgress + 5)
-        }));
-      }
+      const winner = checkTicTacToeWinner(newBoard);
+      if (winner) {
+        setTicTacToeWinner(winner);
+        if (winner !== 'tie') {
+          const coinsEarned = 30;
+          setGameData(prev => ({
+            ...prev,
+            coins: prev.coins + coinsEarned,
+            gamesWon: prev.gamesWon + 1,
+            pet: { ...prev.pet, happiness: Math.min(100, prev.pet.happiness + 5) },
+            sharedProgress: Math.min(100, prev.sharedProgress + 5)
+          }));
+        }
     } else {
       setTicTacToePlayer(ticTacToePlayer === 'X' ? 'O' : 'X');
     }
@@ -965,6 +1283,7 @@ const BondPetGame = () => {
           setGameData(prev => ({
             ...prev,
             coins: prev.coins + coinsEarned,
+            gamesWon: prev.gamesWon + 1,
             pet: { ...prev.pet, happiness: Math.min(100, prev.pet.happiness + 8) },
             sharedProgress: Math.min(100, prev.sharedProgress + 8)
           }));
@@ -1536,6 +1855,346 @@ const BondPetGame = () => {
     return () => window.removeEventListener('keydown', handleKeyPress);
   }, [gameState, tetrisPiece, tetrisGameOver, tetrisPaused]);
 
+  // Puzzle game functions
+  const hasInitialMatches = (board) => {
+    for (let i = 0; i < 8; i++) {
+      for (let j = 0; j < 6; j++) {
+        if (board[i][j] === board[i][j + 1] && board[i][j] === board[i][j + 2]) return true;
+        if (i < 6 && board[i][j] === board[i + 1][j] && board[i][j] === board[i + 2][j]) return true;
+      }
+    }
+    return false;
+  };
+
+  const initializePuzzle = () => {
+    let board;
+    let attempts = 0;
+    do {
+      board = Array(8).fill(0).map(() => 
+        Array(8).fill(0).map(() => colors[Math.floor(Math.random() * colors.length)])
+      );
+      attempts++;
+    } while (hasInitialMatches(board) && attempts < 50);
+    
+    setPuzzleBoard(board);
+    setMoves(25);
+    setScore(0);
+    setCombo(0);
+    setSpecialPieces({});
+    setMatchAnimations(new Set());
+    setTargetScore(1000 + (gameData.puzzlesCompleted * 200));
+  };
+
+  const checkForMatches = (board, cell) => {
+    const { row, col } = cell;
+    const color = board[row][col];
+    
+    let hCount = 1;
+    for (let i = col - 1; i >= 0 && board[row][i] === color; i--) hCount++;
+    for (let i = col + 1; i < 8 && board[row][i] === color; i++) hCount++;
+    
+    let vCount = 1;
+    for (let i = row - 1; i >= 0 && board[i][col] === color; i--) vCount++;
+    for (let i = row + 1; i < 8 && board[i][col] === color; i++) vCount++;
+    
+    return hCount >= 3 || vCount >= 3;
+  };
+
+  const swapCells = (cell1, cell2) => {
+    if (animating) return;
+    
+    const newBoard = puzzleBoard.map(row => [...row]);
+    [newBoard[cell1.row][cell1.col], newBoard[cell2.row][cell2.col]] = 
+    [newBoard[cell2.row][cell2.col], newBoard[cell1.row][cell1.col]];
+    
+    const hasMatch = checkForMatches(newBoard, cell1) || checkForMatches(newBoard, cell2);
+    
+    if (!hasMatch) {
+      [newBoard[cell1.row][cell1.col], newBoard[cell2.row][cell2.col]] = 
+      [newBoard[cell2.row][cell2.col], newBoard[cell1.row][cell1.col]];
+      setPuzzleBoard(newBoard);
+      return;
+    }
+    
+    setAnimating(true);
+    setPuzzleBoard(newBoard);
+    setMoves(moves - 1);
+    setTimeout(() => checkMatches(newBoard), 150);
+  };
+
+  const checkMatches = (board) => {
+    let matches = [];
+    const newBoard = board.map(row => [...row]);
+    const matchSet = new Set();
+    
+    // Horizontal matches
+    for (let i = 0; i < 8; i++) {
+      for (let j = 0; j < 6; j++) {
+        let len = 1;
+        while (j + len < 8 && newBoard[i][j] === newBoard[i][j + len] && newBoard[i][j] !== '💫') len++;
+        if (len >= 3) {
+          for (let l = j; l < j + len; l++) {
+            if (!matchSet.has(`${i},${l}`)) {
+              matches.push([i, l]);
+              matchSet.add(`${i},${l}`);
+            }
+          }
+          j += len - 1;
+        }
+      }
+    }
+    
+    // Vertical matches
+    for (let j = 0; j < 8; j++) {
+      for (let i = 0; i < 6; i++) {
+        let len = 1;
+        while (i + len < 8 && newBoard[i][j] === newBoard[i + len][j] && newBoard[i][j] !== '💫') len++;
+        if (len >= 3) {
+          for (let l = i; l < i + len; l++) {
+            if (!matchSet.has(`${l},${j}`)) {
+              matches.push([l, j]);
+              matchSet.add(`${l},${j}`);
+            }
+          }
+          i += len - 1;
+        }
+      }
+    }
+    
+    if (matches.length > 0) {
+      const newCombo = combo + 1;
+      const multiplier = Math.min(newCombo, 5);
+      setScore(s => s + matches.length * 30 * multiplier);
+      setCombo(newCombo);
+      
+      matches.forEach(([r, c]) => { newBoard[r][c] = '💫'; });
+      setPuzzleBoard(newBoard);
+      setMatchAnimations(new Set(matches.map(([r, c]) => `${r},${c}`)));
+      
+      setTimeout(() => {
+        setMatchAnimations(new Set());
+        dropPieces(newBoard, matches);
+      }, 400);
+    } else {
+      setCombo(0);
+      setAnimating(false);
+    }
+  };
+
+  const dropPieces = (board, matches) => {
+    const newBoard = board.map(row => [...row]);
+    const matchSet = new Set(matches.map(m => `${m[0]},${m[1]}`));
+    
+    for (let col = 0; col < 8; col++) {
+      let writePos = 7;
+      for (let row = 7; row >= 0; row--) {
+        if (!matchSet.has(`${row},${col}`)) {
+          if (writePos !== row) {
+            newBoard[writePos][col] = newBoard[row][col];
+          }
+          writePos--;
+        }
+      }
+      while (writePos >= 0) {
+        newBoard[writePos][col] = colors[Math.floor(Math.random() * colors.length)];
+        writePos--;
+      }
+    }
+    
+    setPuzzleBoard(newBoard);
+    setTimeout(() => checkMatches(newBoard), 200);
+  };
+
+  const completePuzzle = () => {
+    const success = score >= targetScore;
+    const coinsEarned = success ? Math.floor(score / 10) + 50 : Math.floor(score / 20);
+    
+    setGameData(prev => ({
+      ...prev,
+      coins: prev.coins + coinsEarned,
+      puzzlesCompleted: success ? prev.puzzlesCompleted + 1 : prev.puzzlesCompleted,
+      sharedProgress: prev.sharedProgress + (success ? 10 : 5),
+      pet: { ...prev.pet, happiness: Math.min(100, prev.pet.happiness + (success ? 10 : 5)) }
+    }));
+    
+    setGameState('pet');
+  };
+
+  useEffect(() => {
+    if (gameState === 'puzzle' && puzzleBoard.length === 0) {
+      initializePuzzle();
+    }
+  }, [gameState]);
+
+  if (gameState === 'puzzleGames') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-pink-200 via-purple-200 to-indigo-200 p-4">
+        <div className="max-w-4xl mx-auto">
+          <div className="bg-white rounded-2xl p-6 mb-4 shadow-lg">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-3xl font-bold text-pink-600">💕 Puzzle Games</h2>
+              <button onClick={() => setGameState('pet')}
+                className="bg-gray-500 text-white px-4 py-2 rounded-lg font-semibold active:bg-gray-600">
+                ← Back
+              </button>
+            </div>
+            
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+              <div className="bg-gradient-to-br from-pink-100 to-purple-100 rounded-xl p-4 sm:p-6">
+                <h3 className="text-xl sm:text-2xl font-bold mb-2">✨ Match-3</h3>
+                <p className="text-gray-600 mb-4 text-sm">Classic match-3 puzzle!</p>
+                <button onClick={() => {
+                  setGameState('puzzle');
+                  if (puzzleBoard.length === 0) initializePuzzle();
+                }}
+                  className="w-full bg-pink-500 text-white py-3 rounded-lg font-semibold active:bg-pink-600 min-h-[48px]">
+                  Play Match-3
+                </button>
+              </div>
+
+              <div className="bg-gradient-to-br from-blue-100 to-cyan-100 rounded-xl p-4 sm:p-6">
+                <h3 className="text-xl sm:text-2xl font-bold mb-2">🀄 Tile Match</h3>
+                <p className="text-gray-600 mb-4 text-sm">Match tiles in pairs!</p>
+                <button onClick={() => setGameState('tileMatch')}
+                  className="w-full bg-blue-500 text-white py-3 rounded-lg font-semibold active:bg-blue-600 min-h-[48px]">
+                  Play Tile Match
+                </button>
+              </div>
+
+              <div className="bg-gradient-to-br from-green-100 to-emerald-100 rounded-xl p-4 sm:p-6">
+                <h3 className="text-xl sm:text-2xl font-bold mb-2">🔤 Word Search</h3>
+                <p className="text-gray-600 mb-4 text-sm">Find hidden words!</p>
+                <button onClick={() => setGameState('wordSearch')}
+                  className="w-full bg-green-500 text-white py-3 rounded-lg font-semibold active:bg-green-600 min-h-[48px]">
+                  Play Word Search
+                </button>
+              </div>
+
+              <div className="bg-gradient-to-br from-yellow-100 to-orange-100 rounded-xl p-4 sm:p-6">
+                <h3 className="text-xl sm:text-2xl font-bold mb-2">🧩 Jigsaw</h3>
+                <p className="text-gray-600 mb-4 text-sm">Complete picture puzzles!</p>
+                <button onClick={() => setGameState('jigsaw')}
+                  className="w-full bg-yellow-500 text-white py-3 rounded-lg font-semibold active:bg-yellow-600 min-h-[48px]">
+                  Play Jigsaw
+                </button>
+              </div>
+
+              <div className="bg-gradient-to-br from-purple-100 to-indigo-100 rounded-xl p-4 sm:p-6">
+                <h3 className="text-xl sm:text-2xl font-bold mb-2">🧠 Logic Puzzle</h3>
+                <p className="text-gray-600 mb-4 text-sm">Solve brain-teasers!</p>
+                <button onClick={() => setGameState('logicPuzzle')}
+                  className="w-full bg-purple-500 text-white py-3 rounded-lg font-semibold active:bg-purple-600 min-h-[48px]">
+                  Play Logic
+                </button>
+              </div>
+
+              <div className="bg-gradient-to-br from-red-100 to-rose-100 rounded-xl p-4 sm:p-6">
+                <h3 className="text-xl sm:text-2xl font-bold mb-2">🚪 Escape Room</h3>
+                <p className="text-gray-600 mb-4 text-sm">Solve mysteries and escape!</p>
+                <button onClick={() => setGameState('escapeRoom')}
+                  className="w-full bg-red-500 text-white py-3 rounded-lg font-semibold active:bg-red-600 min-h-[48px]">
+                  Play Escape Room
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (gameState === 'puzzle') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-pink-300 via-purple-300 to-indigo-300 p-4">
+        <div className="max-w-3xl mx-auto">
+          <div className="bg-white rounded-2xl p-4 mb-4 shadow-lg">
+            <div className="grid grid-cols-3 gap-4 mb-4">
+              <div className="text-center">
+                <div className="text-2xl font-bold text-purple-600">{score}</div>
+                <div className="text-xs text-gray-600">Score</div>
+                <div className="text-xs text-green-600">Goal: {targetScore}</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-blue-600">{moves}</div>
+                <div className="text-xs text-gray-600">Moves</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-orange-600">x{combo > 0 ? Math.min(combo, 5) : 1}</div>
+                <div className="text-xs text-gray-600">Combo</div>
+              </div>
+            </div>
+
+            <div className="mb-4">
+              <div className="w-full bg-gray-200 rounded-full h-3">
+                <div className="bg-gradient-to-r from-pink-500 to-purple-500 h-3 rounded-full transition-all"
+                  style={{ width: `${Math.min((score / targetScore) * 100, 100)}%` }}></div>
+              </div>
+            </div>
+
+            <div className="text-xs text-gray-600 text-center mb-4">
+              💕 Match 3 or more colors to score points! Perfect for relaxing and bonding!
+            </div>
+            
+            <div className="bg-gray-100 rounded-xl p-1 sm:p-2 mb-4 overflow-x-auto">
+              <div className="inline-block min-w-max mx-auto">
+                {puzzleBoard.map((row, i) => (
+                  <div key={i} className="flex justify-center">
+                    {row.map((cell, j) => {
+                      const isAnimating = matchAnimations.has(`${i},${j}`);
+                      const isSelected = selectedCell?.row === i && selectedCell?.col === j;
+                      
+                      return (
+                        <button
+                          key={`${i}-${j}`}
+                          onClick={() => {
+                            if (animating) return;
+                            if (!selectedCell) {
+                              setSelectedCell({ row: i, col: j });
+                            } else {
+                              const rowDiff = Math.abs(selectedCell.row - i);
+                              const colDiff = Math.abs(selectedCell.col - j);
+                              if ((rowDiff === 1 && colDiff === 0) || (rowDiff === 0 && colDiff === 1)) {
+                                swapCells(selectedCell, { row: i, col: j });
+                              }
+                              setSelectedCell(null);
+                            }
+                          }}
+                          disabled={animating && !isSelected}
+                          className={`w-10 h-10 sm:w-11 sm:h-11 m-0.5 sm:m-1 text-lg sm:text-xl rounded-lg transition-all duration-200 active:scale-95 ${
+                            isAnimating
+                              ? 'bg-pink-400 scale-125 animate-pulse'
+                              : isSelected
+                              ? 'bg-pink-300 scale-110 shadow-lg ring-2 ring-pink-500'
+                              : cell === '💫'
+                              ? 'bg-gray-300 opacity-50'
+                              : 'bg-white active:bg-gray-50 active:scale-105'
+                          } ${animating && !isSelected ? 'opacity-75' : ''}`}
+                        >
+                          {cell === '💫' ? '✨' : cell}
+              </button>
+                      );
+                    })}
+                  </div>
+                ))}
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-3">
+              <button onClick={() => setGameState('pet')}
+                className="bg-gray-500 text-white py-3 rounded-xl font-semibold active:bg-gray-600 transition-all">
+                ← Back
+              </button>
+              <button onClick={completePuzzle}
+                className="bg-pink-500 text-white py-3 rounded-xl font-semibold active:bg-pink-600 flex items-center justify-center gap-2 transition-all">
+                <Trophy size={20} /> {score >= targetScore ? 'Victory! 💕' : 'End'}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (gameState === 'brickGames') {
     return (
       <div className="min-h-screen bg-gradient-to-br from-purple-200 via-blue-200 to-pink-200 p-4">
@@ -1560,9 +2219,9 @@ const BondPetGame = () => {
                 }}
                   className="w-full bg-red-500 text-white py-3 rounded-lg font-semibold active:bg-red-600 min-h-[48px]">
                   Play Tetris
-                </button>
-              </div>
-
+              </button>
+            </div>
+            
               <div className="bg-gradient-to-br from-green-100 to-teal-100 rounded-xl p-6">
                 <h3 className="text-2xl font-bold mb-2">🐍 Snake</h3>
                 <p className="text-gray-600 mb-4 text-sm">Grow your snake by eating food. Avoid walls and yourself!</p>
@@ -1673,7 +2332,7 @@ const BondPetGame = () => {
                 <div className="bg-gray-900 rounded-lg p-2 mb-4 mx-auto" style={{ width: 'fit-content' }}>
                   {displayBoard.map((row, i) => (
                     <div key={i} className="flex">
-                      {row.map((cell, j) => (
+                  {row.map((cell, j) => (
                         <div
                           key={`${i}-${j}`}
                           className="w-6 h-6 sm:w-7 sm:h-7 border border-gray-700"
@@ -1754,6 +2413,592 @@ const BondPetGame = () => {
               <p className="text-gray-600 mb-4">Brick Breaker game coming soon!</p>
               <p className="text-sm text-gray-500">This classic game will be available in the next update.</p>
             </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Tile Matching Game (Mahjong-style)
+  if (gameState === 'tileMatch') {
+    const tiles = ['🌸', '🌺', '🌻', '🌷', '🌹', '🌼', '🌿', '🍀', '💐', '🎋'];
+    
+    const initializeTileMatch = () => {
+      const tilePairs = [...tiles, ...tiles];
+      const shuffled = tilePairs.sort(() => Math.random() - 0.5);
+      const board = [];
+      for (let i = 0; i < 4; i++) {
+        board.push([]);
+        for (let j = 0; j < 5; j++) {
+          if (shuffled.length > 0) {
+            board[i].push(shuffled.pop());
+          }
+        }
+      }
+      setTileBoard(board);
+      setTileSelected(null);
+      setTileScore(0);
+    };
+
+    if (tileBoard.length === 0) initializeTileMatch();
+
+    const handleTileClick = (row, col) => {
+      if (!tileBoard[row][col]) return;
+      
+      if (!tileSelected) {
+        setTileSelected({ row, col });
+      } else {
+        if (tileBoard[tileSelected.row][tileSelected.col] === tileBoard[row][col] && 
+            !(tileSelected.row === row && tileSelected.col === col)) {
+          const newBoard = tileBoard.map(r => [...r]);
+          newBoard[tileSelected.row][tileSelected.col] = null;
+          newBoard[row][col] = null;
+          setTileBoard(newBoard);
+          setTileScore(tileScore + 10);
+          setTileSelected(null);
+          
+          const remaining = newBoard.flat().filter(t => t !== null);
+          if (remaining.length === 0) {
+            setGameData(prev => ({
+              ...prev,
+              coins: prev.coins + 30,
+              pet: { ...prev.pet, happiness: Math.min(100, prev.pet.happiness + 5) }
+            }));
+          }
+        } else {
+          setTileSelected({ row, col });
+        }
+      }
+    };
+
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-200 via-cyan-200 to-teal-200 p-4">
+        <div className="max-w-2xl mx-auto">
+          <div className="bg-white rounded-2xl p-4 shadow-lg">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-2xl font-bold text-blue-600">🀄 Tile Match</h2>
+              <button onClick={() => setGameState('puzzleGames')}
+                className="bg-gray-500 text-white px-3 py-2 rounded-lg font-semibold active:bg-gray-600 text-sm">
+                ← Back
+              </button>
+            </div>
+            
+            <div className="text-center mb-4">
+              <div className="text-xl font-bold text-blue-600">Score: {tileScore}</div>
+            </div>
+
+            <div className="grid grid-cols-5 gap-2 mb-4">
+              {tileBoard.map((row, i) => 
+                row.map((tile, j) => (
+                    <button
+                      key={`${i}-${j}`}
+                    onClick={() => handleTileClick(i, j)}
+                    disabled={!tile}
+                    className={`w-14 h-14 sm:w-16 sm:h-16 text-2xl sm:text-3xl rounded-lg transition-all active:scale-95 ${
+                      tileSelected?.row === i && tileSelected?.col === j
+                        ? 'bg-yellow-300 ring-4 ring-yellow-500'
+                        : tile
+                        ? 'bg-white hover:bg-blue-50 border-2 border-blue-200'
+                        : 'bg-gray-100 opacity-50'
+                    }`}
+                  >
+                    {tile || ''}
+                  </button>
+                ))
+              )}
+            </div>
+
+            <button onClick={initializeTileMatch}
+              className="w-full bg-blue-500 text-white py-3 rounded-lg font-semibold active:bg-blue-600 min-h-[48px]">
+              New Game
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Word Search Game
+  if (gameState === 'wordSearch') {
+    const words = relationshipMode === 'couples' 
+      ? ['LOVE', 'KISS', 'HEART', 'DATE', 'ROMANCE']
+      : relationshipMode === 'family'
+      ? ['FAMILY', 'HOME', 'LOVE', 'CARE', 'UNITED']
+      : ['FRIEND', 'FUN', 'LAUGH', 'JOY', 'BOND'];
+    
+    const initializeWordSearch = () => {
+      const gridSize = 10;
+      const grid = Array(gridSize).fill(null).map(() => Array(gridSize).fill(''));
+      
+      // Place words
+      words.forEach(word => {
+        const direction = Math.random() > 0.5 ? 'horizontal' : 'vertical';
+        const row = Math.floor(Math.random() * (gridSize - word.length));
+        const col = Math.floor(Math.random() * (gridSize - word.length));
+        
+        for (let i = 0; i < word.length; i++) {
+          if (direction === 'horizontal') {
+            grid[row][col + i] = word[i];
+          } else {
+            grid[row + i][col] = word[i];
+          }
+        }
+      });
+      
+      // Fill empty cells
+      const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+      for (let i = 0; i < gridSize; i++) {
+        for (let j = 0; j < gridSize; j++) {
+          if (!grid[i][j]) {
+            grid[i][j] = letters[Math.floor(Math.random() * letters.length)];
+          }
+        }
+      }
+      
+      setWordGrid(grid);
+      setWordFound([]);
+    };
+
+    if (wordGrid.length === 0) initializeWordSearch();
+
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-green-200 via-emerald-200 to-teal-200 p-4">
+        <div className="max-w-2xl mx-auto">
+          <div className="bg-white rounded-2xl p-4 shadow-lg">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-2xl font-bold text-green-600">🔤 Word Search</h2>
+              <button onClick={() => setGameState('puzzleGames')}
+                className="bg-gray-500 text-white px-3 py-2 rounded-lg font-semibold active:bg-gray-600 text-sm">
+                ← Back
+              </button>
+            </div>
+            
+            <div className="mb-4">
+              <p className="text-sm font-semibold mb-2">Find these words:</p>
+              <div className="flex flex-wrap gap-2">
+                {words.map((word, i) => (
+                  <span key={i} className={`px-3 py-1 rounded-full text-sm font-semibold ${
+                    wordFound.includes(word) ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-700'
+                  }`}>
+                    {word}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-10 gap-1 mb-4 bg-gray-100 p-2 rounded-lg">
+              {wordGrid.map((row, i) => 
+                row.map((cell, j) => (
+                  <div
+                    key={`${i}-${j}`}
+                    className="w-8 h-8 sm:w-10 sm:h-10 bg-white rounded flex items-center justify-center text-sm sm:text-base font-bold border border-gray-300"
+                    >
+                      {cell}
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className="text-sm text-gray-600 text-center mb-4">
+              💡 Word Search - Find all the words! (Interactive version coming soon)
+            </div>
+
+            <button onClick={initializeWordSearch}
+              className="w-full bg-green-500 text-white py-3 rounded-lg font-semibold active:bg-green-600 min-h-[48px]">
+              New Puzzle
+                    </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Jigsaw Puzzle
+  if (gameState === 'jigsaw') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-yellow-200 via-orange-200 to-red-200 p-4">
+        <div className="max-w-2xl mx-auto">
+          <div className="bg-white rounded-2xl p-4 shadow-lg">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-2xl font-bold text-yellow-600">🧩 Jigsaw Puzzle</h2>
+              <button onClick={() => setGameState('puzzleGames')}
+                className="bg-gray-500 text-white px-3 py-2 rounded-lg font-semibold active:bg-gray-600 text-sm">
+                ← Back
+              </button>
+            </div>
+            <div className="text-center p-8 bg-gray-100 rounded-lg mb-4">
+              <p className="text-gray-600 mb-4">Jigsaw Puzzle coming soon!</p>
+              <p className="text-sm text-gray-500">Beautiful picture puzzles will be available in the next update.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Logic Puzzle
+  if (gameState === 'logicPuzzle') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-purple-200 via-indigo-200 to-blue-200 p-4">
+        <div className="max-w-2xl mx-auto">
+          <div className="bg-white rounded-2xl p-4 shadow-lg">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-2xl font-bold text-purple-600">🧠 Logic Puzzle</h2>
+              <button onClick={() => setGameState('puzzleGames')}
+                className="bg-gray-500 text-white px-3 py-2 rounded-lg font-semibold active:bg-gray-600 text-sm">
+                ← Back
+              </button>
+            </div>
+            <div className="text-center p-8 bg-gray-100 rounded-lg mb-4">
+              <p className="text-gray-600 mb-4">Logic Puzzles coming soon!</p>
+              <p className="text-sm text-gray-500">Brain-teasing puzzles will be available in the next update.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Escape Room
+  if (gameState === 'escapeRoom') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-red-200 via-rose-200 to-pink-200 p-4">
+        <div className="max-w-2xl mx-auto">
+          <div className="bg-white rounded-2xl p-4 shadow-lg">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-2xl font-bold text-red-600">🚪 Escape Room</h2>
+              <button onClick={() => setGameState('puzzleGames')}
+                className="bg-gray-500 text-white px-3 py-2 rounded-lg font-semibold active:bg-gray-600 text-sm">
+                ← Back
+              </button>
+            </div>
+            <div className="text-center p-8 bg-gray-100 rounded-lg mb-4">
+              <p className="text-gray-600 mb-4">Escape Room puzzles coming soon!</p>
+              <p className="text-sm text-gray-500">Mystery and escape room style puzzles will be available in the next update.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Pac-Man Game
+  if (gameState === 'pacman') {
+    const pacmanMaze = Array(28).fill(null).map(() => Array(31).fill(0));
+    
+    // Simple maze pattern
+    for (let i = 0; i < 28; i++) {
+      for (let j = 0; j < 31; j++) {
+        if (i === 0 || i === 27 || j === 0 || j === 30) {
+          pacmanMaze[i][j] = 1; // Walls
+        } else if ((i === 1 || i === 26) && j > 0 && j < 30) {
+          pacmanMaze[i][j] = 2; // Dots
+        } else if (i > 1 && i < 26 && (j === 1 || j === 29)) {
+          pacmanMaze[i][j] = 2;
+        } else if (i % 3 === 0 && j % 5 === 0) {
+          pacmanMaze[i][j] = 2;
+        }
+      }
+    }
+
+    const handlePacmanKey = (key) => {
+      if (key === 'ArrowUp') setPacmanDirection('up');
+      else if (key === 'ArrowDown') setPacmanDirection('down');
+      else if (key === 'ArrowLeft') setPacmanDirection('left');
+      else if (key === 'ArrowRight') setPacmanDirection('right');
+    };
+
+    useEffect(() => {
+      if (gameState !== 'pacman') return;
+      
+      const handleKeyPress = (e) => {
+        e.preventDefault();
+        handlePacmanKey(e.key);
+      };
+      
+      window.addEventListener('keydown', handleKeyPress);
+      return () => window.removeEventListener('keydown', handleKeyPress);
+    }, [gameState]);
+
+    const movePacman = () => {
+      setPacmanPos(current => {
+        let newPos = { ...current };
+        if (pacmanDirection === 'up') newPos.y--;
+        else if (pacmanDirection === 'down') newPos.y++;
+        else if (pacmanDirection === 'left') newPos.x--;
+        else if (pacmanDirection === 'right') newPos.x++;
+        
+        // Check bounds
+        if (newPos.x < 0) newPos.x = 30;
+        if (newPos.x > 30) newPos.x = 0;
+        if (newPos.y < 0 || newPos.y > 27) return current;
+        
+        // Check if dot collected
+        if (pacmanMaze[newPos.y][newPos.x] === 2) {
+          setPacmanScore(prev => prev + 10);
+        }
+        
+        return newPos;
+      });
+    };
+
+    useEffect(() => {
+      if (gameState !== 'pacman') return;
+      const interval = setInterval(movePacman, 200);
+      return () => clearInterval(interval);
+    }, [gameState, pacmanDirection]);
+
+    const completePacman = () => {
+      const coinsEarned = Math.floor(pacmanScore / 10);
+      setGameData(prev => ({
+        ...prev,
+        coins: prev.coins + coinsEarned,
+        pet: { ...prev.pet, happiness: Math.min(100, prev.pet.happiness + 5) },
+        sharedProgress: Math.min(100, prev.sharedProgress + 5)
+      }));
+      setGameState('arcadeGames');
+    };
+
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-yellow-200 via-orange-200 to-red-200 p-4">
+        <div className="max-w-2xl mx-auto">
+          <div className="bg-white rounded-2xl p-4 shadow-lg">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-2xl font-bold text-yellow-600">👻 Pac-Man</h2>
+              <button onClick={() => setGameState('arcadeGames')}
+                className="bg-gray-500 text-white px-3 py-2 rounded-lg font-semibold active:bg-gray-600 text-sm">
+                ← Back
+              </button>
+            </div>
+
+            <div className="grid grid-cols-3 gap-2 mb-4 text-center">
+              <div>
+                <div className="text-xl font-bold text-yellow-600">{pacmanScore}</div>
+                <div className="text-xs text-gray-600">Score</div>
+              </div>
+              <div>
+                <div className="text-xl font-bold text-red-600">{pacmanLives}</div>
+                <div className="text-xs text-gray-600">Lives</div>
+              </div>
+              <div>
+                <div className="text-xl font-bold text-blue-600">Level {pacmanLevel}</div>
+                <div className="text-xs text-gray-600">Level</div>
+              </div>
+            </div>
+
+            <div className="bg-black rounded-lg p-2 mb-4" style={{ width: 'fit-content', margin: '0 auto' }}>
+              {pacmanMaze.map((row, i) => (
+                <div key={i} className="flex">
+                  {row.map((cell, j) => (
+                    <div
+                      key={`${i}-${j}`}
+                      className="w-4 h-4 sm:w-5 sm:h-5 flex items-center justify-center"
+                    >
+                      {pacmanPos.x === j && pacmanPos.y === i ? (
+                        <span className="text-yellow-400 text-xl">👻</span>
+                      ) : cell === 1 ? (
+                        <span className="text-blue-600">█</span>
+                      ) : cell === 2 ? (
+                        <span className="text-yellow-300 text-xs">•</span>
+                      ) : (
+                        ' '
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+            
+            <div className="grid grid-cols-4 gap-2 mb-2">
+              <div></div>
+              <button onClick={() => setPacmanDirection('up')}
+                className="bg-yellow-500 text-white py-3 rounded-lg font-bold active:bg-yellow-600 min-h-[48px]">
+                ↑
+              </button>
+              <div></div>
+              <div></div>
+              <button onClick={() => setPacmanDirection('left')}
+                className="bg-yellow-500 text-white py-3 rounded-lg font-bold active:bg-yellow-600 min-h-[48px]">
+                ←
+              </button>
+              <button onClick={() => setPacmanDirection('down')}
+                className="bg-yellow-500 text-white py-3 rounded-lg font-bold active:bg-yellow-600 min-h-[48px]">
+                ↓
+              </button>
+              <button onClick={() => setPacmanDirection('right')}
+                className="bg-yellow-500 text-white py-3 rounded-lg font-bold active:bg-yellow-600 min-h-[48px]">
+                →
+            </button>
+            </div>
+
+            <button onClick={completePacman}
+              className="w-full bg-green-500 text-white py-3 rounded-lg font-semibold active:bg-green-600 min-h-[48px]">
+              Collect Rewards (+{Math.floor(pacmanScore / 10)} coins)
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Jetpack Joyride Game
+  if (gameState === 'jetpack') {
+    const handleJetpackKey = (pressed) => {
+      if (pressed) {
+        setJetpackY(prev => Math.max(50, prev - 5));
+      } else {
+        setJetpackY(prev => Math.min(350, prev + 3));
+      }
+    };
+
+    useEffect(() => {
+      if (gameState !== 'jetpack' || jetpackGameOver) return;
+      
+      const handleKeyPress = (e) => {
+        if (e.key === ' ' || e.key === 'ArrowUp') {
+          e.preventDefault();
+          handleJetpackKey(true);
+        }
+      };
+      
+      const handleKeyUp = (e) => {
+        if (e.key === ' ' || e.key === 'ArrowUp') {
+          e.preventDefault();
+          handleJetpackKey(false);
+        }
+      };
+      
+      window.addEventListener('keydown', handleKeyPress);
+      window.addEventListener('keyup', handleKeyUp);
+      return () => {
+        window.removeEventListener('keydown', handleKeyPress);
+        window.removeEventListener('keyup', handleKeyUp);
+      };
+    }, [gameState, jetpackGameOver]);
+
+    useEffect(() => {
+      if (gameState !== 'jetpack' || jetpackGameOver) return;
+      
+      const gameLoop = setInterval(() => {
+        setJetpackScore(prev => prev + 1);
+        setJetpackObstacles(prev => {
+          const newObstacles = prev.map(obs => ({ ...obs, x: obs.x - 5 }));
+          const filtered = newObstacles.filter(obs => obs.x > -50);
+          
+          // Add new obstacles
+          if (Math.random() < 0.1) {
+            filtered.push({
+              x: 600,
+              yTop: Math.random() * 150 + 50,
+              yBottom: Math.random() * 150 + 250,
+              gap: 100
+            });
+          }
+          
+          // Check collisions
+          filtered.forEach(obs => {
+            if (obs.x < 100 && obs.x > 50) {
+              if (jetpackY < obs.yTop || jetpackY > obs.yBottom) {
+                setJetpackGameOver(true);
+              }
+            }
+          });
+          
+          return filtered;
+        });
+      }, 50);
+      
+      return () => clearInterval(gameLoop);
+    }, [gameState, jetpackGameOver, jetpackY]);
+
+    const completeJetpack = () => {
+      const coinsEarned = Math.floor(jetpackScore / 5);
+      setGameData(prev => ({
+        ...prev,
+        coins: prev.coins + coinsEarned,
+        pet: { ...prev.pet, happiness: Math.min(100, prev.pet.happiness + 5) },
+        sharedProgress: Math.min(100, prev.sharedProgress + 5)
+      }));
+      setGameState('arcadeGames');
+    };
+
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-200 via-indigo-200 to-purple-200 p-4">
+        <div className="max-w-md mx-auto">
+          <div className="bg-white rounded-2xl p-4 shadow-lg">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-2xl font-bold text-blue-600">🚀 Jetpack Joyride</h2>
+              <button onClick={() => setGameState('arcadeGames')}
+                className="bg-gray-500 text-white px-3 py-2 rounded-lg font-semibold active:bg-gray-600 text-sm">
+                ← Back
+              </button>
+            </div>
+
+            <div className="text-center mb-4">
+              <div className="text-2xl font-bold text-blue-600">Score: {jetpackScore}</div>
+              <div className="text-sm text-gray-600">Distance: {jetpackScore}m</div>
+            </div>
+
+            {jetpackGameOver ? (
+              <div className="text-center p-6 bg-red-50 rounded-lg mb-4">
+                <div className="text-2xl font-bold mb-2">Game Over! 💥</div>
+                <div className="text-green-600 font-semibold mb-4">+{Math.floor(jetpackScore / 5)} Coins Earned! 🪙</div>
+                <div className="grid grid-cols-2 gap-2">
+                  <button onClick={() => {
+                    setJetpackScore(0);
+                    setJetpackY(200);
+                    setJetpackObstacles([]);
+                    setJetpackGameOver(false);
+                  }}
+                    className="bg-blue-500 text-white py-2 rounded-lg font-semibold active:bg-blue-600">
+                    Play Again
+                  </button>
+                  <button onClick={completeJetpack}
+                    className="bg-green-500 text-white py-2 rounded-lg font-semibold active:bg-green-600">
+                    Collect Rewards
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="relative bg-gradient-to-b from-sky-400 to-blue-500 rounded-lg h-96 mb-4 overflow-hidden border-4 border-gray-800">
+                  {/* Player */}
+                  <div
+                    className="absolute left-12 transition-all duration-75"
+                    style={{ top: `${jetpackY}px` }}
+                  >
+                    <div className="text-4xl">🚀</div>
+                  </div>
+
+                  {/* Obstacles */}
+                  {jetpackObstacles.map((obs, i) => (
+                    <div key={i}>
+                      <div
+                        className="absolute bg-gray-800 w-12"
+                        style={{ left: `${obs.x}px`, top: '0px', height: `${obs.yTop}px` }}
+                      />
+                      <div
+                        className="absolute bg-gray-800 w-12"
+                        style={{ left: `${obs.x}px`, bottom: '0px', height: `${400 - obs.yBottom}px` }}
+                      />
+                    </div>
+                  ))}
+                </div>
+
+                <div className="text-center mb-4">
+                  <p className="text-sm text-gray-600 mb-2">Tap/Hold to fly up! Release to fall.</p>
+                  <button
+                    onMouseDown={() => handleJetpackKey(true)}
+                    onMouseUp={() => handleJetpackKey(false)}
+                    onTouchStart={() => handleJetpackKey(true)}
+                    onTouchEnd={() => handleJetpackKey(false)}
+                    className="w-full bg-blue-500 text-white py-4 rounded-lg font-bold active:bg-blue-600 text-lg min-h-[56px]"
+                  >
+                    🚀 FLY UP
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       </div>
