@@ -26,18 +26,28 @@ const BondPetGame = () => {
     { id: 'unicorn', name: 'Unicorn', emoji: '🦄', happy: '😊', neutral: '🦄', sad: '😔', excited: '✨' }
   ];
 
-  const [puzzleBoard, setPuzzleBoard] = useState([]);
-  const [selectedCell, setSelectedCell] = useState(null);
-  const [score, setScore] = useState(0);
-  const [moves, setMoves] = useState(25);
-  const [combo, setCombo] = useState(0);
-  const [specialPieces, setSpecialPieces] = useState({});
-  const [powerups, setPowerups] = useState({ shuffle: 1, hammer: 2, colorBomb: 1 });
-  const [selectedPowerup, setSelectedPowerup] = useState(null);
-  const [targetScore, setTargetScore] = useState(1000);
-  const [animating, setAnimating] = useState(false);
-  const [lastSwap, setLastSwap] = useState(null);
-  const [matchAnimations, setMatchAnimations] = useState(new Set());
+  // Brick games states
+  const [brickGameType, setBrickGameType] = useState(null); // 'tetris', 'snake', 'brickbreaker'
+  
+  // Tetris states
+  const [tetrisBoard, setTetrisBoard] = useState(Array(20).fill(null).map(() => Array(10).fill(0)));
+  const [tetrisPiece, setTetrisPiece] = useState(null);
+  const [tetrisScore, setTetrisScore] = useState(0);
+  const [tetrisLevel, setTetrisLevel] = useState(1);
+  const [tetrisLines, setTetrisLines] = useState(0);
+  const [tetrisGameOver, setTetrisGameOver] = useState(false);
+  const [tetrisPaused, setTetrisPaused] = useState(false);
+  const [tetrisFallTime, setTetrisFallTime] = useState(1000);
+
+  // Snake states
+  const [snakeGame, setSnakeGame] = useState(null);
+  const [snakeScore, setSnakeScore] = useState(0);
+  const [snakeGameOver, setSnakeGameOver] = useState(false);
+
+  // Brick Breaker states
+  const [brickBreakerGame, setBrickBreakerGame] = useState(null);
+  const [brickBreakerScore, setBrickBreakerScore] = useState(0);
+  const [brickBreakerGameOver, setBrickBreakerGameOver] = useState(false);
 
   // Board games states
   const [ticTacToeBoard, setTicTacToeBoard] = useState(Array(9).fill(null));
@@ -51,13 +61,18 @@ const BondPetGame = () => {
   const [neverHaveIEverIndex, setNeverHaveIEverIndex] = useState(0);
   const [relationshipExplorerIndex, setRelationshipExplorerIndex] = useState(0);
 
-  const colors = ['🔴', '🔵', '🟢', '🟡', '🟣', '🟠'];
-  const SPECIAL_TYPES = {
-    ROCKET_H: '🚀→',
-    ROCKET_V: '🚀↓',
-    BOMB: '💣',
-    RAINBOW: '🌈'
-  };
+  // Tetris pieces shapes
+  const TETRIS_SHAPES = [
+    [[1,1,1,1]], // I
+    [[1,1],[1,1]], // O
+    [[0,1,0],[1,1,1]], // T
+    [[1,1,0],[0,1,1]], // S
+    [[0,1,1],[1,1,0]], // Z
+    [[1,0,0],[1,1,1]], // J
+    [[0,0,1],[1,1,1]] // L
+  ];
+
+  const TETRIS_COLORS = ['#FF0000', '#00FF00', '#0000FF', '#FFFF00', '#FF00FF', '#00FFFF', '#FFA500'];
   
   const items = {
     friends: [
@@ -667,9 +682,6 @@ const BondPetGame = () => {
     return msgs[relationshipMode]?.[Math.floor(Math.random() * 4)] || msgs.friends[0];
   };
 
-  useEffect(() => {
-    if (gameState === 'puzzle' && puzzleBoard.length === 0) initializePuzzle();
-  }, [gameState]);
 
   if (gameState === 'petSelection') {
     return (
@@ -821,9 +833,9 @@ const BondPetGame = () => {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
-            <button onClick={() => setGameState('puzzle')}
+            <button onClick={() => setGameState('brickGames')}
               className="bg-gradient-to-r from-purple-500 to-blue-500 text-white py-4 sm:py-4 rounded-xl font-semibold active:scale-95 transition-all flex items-center justify-center gap-2 text-base sm:text-lg min-h-[56px]">
-              <Star size={20} /> Puzzle
+              <Star size={20} /> Brick Games
             </button>
             <button onClick={() => setGameState('boardGames')}
               className="bg-gradient-to-r from-orange-500 to-red-500 text-white py-4 sm:py-4 rounded-xl font-semibold active:scale-95 transition-all flex items-center justify-center gap-2 text-base sm:text-lg min-h-[56px]">
@@ -1350,114 +1362,357 @@ const BondPetGame = () => {
     );
   }
 
-  if (gameState === 'puzzle') {
+  // Tetris functions
+  const createNewTetrisPiece = () => {
+    const shapeIndex = Math.floor(Math.random() * TETRIS_SHAPES.length);
+    return {
+      shape: TETRIS_SHAPES[shapeIndex],
+      x: Math.floor(10 / 2) - 1,
+      y: 0,
+      color: TETRIS_COLORS[shapeIndex]
+    };
+  };
+
+  const initializeTetris = () => {
+    setTetrisBoard(Array(20).fill(null).map(() => Array(10).fill(0)));
+    setTetrisPiece(createNewTetrisPiece());
+    setTetrisScore(0);
+    setTetrisLevel(1);
+    setTetrisLines(0);
+    setTetrisGameOver(false);
+    setTetrisPaused(false);
+    setTetrisFallTime(1000);
+  };
+
+  const rotateTetrisPiece = (piece) => {
+    const rows = piece.shape.length;
+    const cols = piece.shape[0].length;
+    const rotated = Array(cols).fill(null).map(() => Array(rows).fill(0));
+    for (let i = 0; i < rows; i++) {
+      for (let j = 0; j < cols; j++) {
+        rotated[j][rows - 1 - i] = piece.shape[i][j];
+      }
+    }
+    return { ...piece, shape: rotated };
+  };
+
+  const isValidPosition = (board, piece, dx = 0, dy = 0) => {
+    for (let y = 0; y < piece.shape.length; y++) {
+      for (let x = 0; x < piece.shape[y].length; x++) {
+        if (piece.shape[y][x]) {
+          const newX = piece.x + x + dx;
+          const newY = piece.y + y + dy;
+          if (newX < 0 || newX >= 10 || newY >= 20) return false;
+          if (newY >= 0 && board[newY][newX]) return false;
+        }
+      }
+    }
+    return true;
+  };
+
+  const placeTetrisPiece = (board, piece) => {
+    const newBoard = board.map(row => [...row]);
+    for (let y = 0; y < piece.shape.length; y++) {
+      for (let x = 0; x < piece.shape[y].length; x++) {
+        if (piece.shape[y][x]) {
+          const boardY = piece.y + y;
+          const boardX = piece.x + x;
+          if (boardY >= 0) {
+            newBoard[boardY][boardX] = piece.color;
+          }
+        }
+      }
+    }
+    return newBoard;
+  };
+
+  const clearTetrisLines = (board) => {
+    let newBoard = board.filter(row => !row.every(cell => cell !== 0));
+    const linesCleared = board.length - newBoard.length;
+    while (newBoard.length < 20) {
+      newBoard.unshift(Array(10).fill(0));
+    }
+    return { board: newBoard, linesCleared };
+  };
+
+  const moveTetrisPiece = (direction) => {
+    if (!tetrisPiece || tetrisGameOver || tetrisPaused) return;
+    
+    let newPiece = { ...tetrisPiece };
+    if (direction === 'left') newPiece.x--;
+    else if (direction === 'right') newPiece.x++;
+    else if (direction === 'down') newPiece.y++;
+    else if (direction === 'rotate') newPiece = rotateTetrisPiece(tetrisPiece);
+    
+    if (isValidPosition(tetrisBoard, newPiece)) {
+      setTetrisPiece(newPiece);
+    } else if (direction === 'down') {
+      // Place piece and create new one
+      const newBoard = placeTetrisPiece(tetrisBoard, tetrisPiece);
+      const { board: clearedBoard, linesCleared } = clearTetrisLines(newBoard);
+      setTetrisBoard(clearedBoard);
+      
+      if (linesCleared > 0) {
+        const points = [0, 100, 300, 500, 800][linesCleared] * (tetrisLevel + 1);
+        setTetrisScore(prev => prev + points);
+        setTetrisLines(prev => prev + linesCleared);
+        setTetrisLevel(prev => Math.floor((prev + linesCleared) / 10) + 1);
+        setTetrisFallTime(prev => Math.max(100, prev - 50));
+      }
+      
+      const nextPiece = createNewTetrisPiece();
+      if (!isValidPosition(clearedBoard, nextPiece)) {
+        setTetrisGameOver(true);
+      } else {
+        setTetrisPiece(nextPiece);
+      }
+    }
+  };
+
+  // Auto fall effect
+  useEffect(() => {
+    if (gameState === 'tetris' && !tetrisGameOver && !tetrisPaused && tetrisPiece) {
+      const interval = setInterval(() => {
+        moveTetrisPiece('down');
+      }, tetrisFallTime);
+      return () => clearInterval(interval);
+    }
+  }, [gameState === 'tetris', tetrisPiece, tetrisGameOver, tetrisPaused, tetrisFallTime]);
+
+  // Keyboard controls
+  useEffect(() => {
+    if (gameState !== 'tetris') return;
+    
+    const handleKeyPress = (e) => {
+      if (tetrisGameOver || tetrisPaused) return;
+      if (e.key === 'ArrowLeft') moveTetrisPiece('left');
+      if (e.key === 'ArrowRight') moveTetrisPiece('right');
+      if (e.key === 'ArrowDown') moveTetrisPiece('down');
+      if (e.key === 'ArrowUp' || e.key === ' ') moveTetrisPiece('rotate');
+      if (e.key === 'p' || e.key === 'P') setTetrisPaused(!tetrisPaused);
+    };
+    
+    window.addEventListener('keydown', handleKeyPress);
+    return () => window.removeEventListener('keydown', handleKeyPress);
+  }, [gameState === 'tetris', tetrisPiece, tetrisGameOver, tetrisPaused]);
+
+  if (gameState === 'brickGames') {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-indigo-300 via-purple-300 to-pink-300 p-4">
-        <div className="max-w-3xl mx-auto">
-          <div className="bg-white rounded-2xl p-4 mb-4 shadow-lg">
-            <div className="grid grid-cols-3 gap-4 mb-4">
-              <div className="text-center">
-                <div className="text-2xl font-bold text-purple-600">{score}</div>
-                <div className="text-xs text-gray-600">Score</div>
-                <div className="text-xs text-green-600">Goal: {targetScore}</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-blue-600">{moves}</div>
-                <div className="text-xs text-gray-600">Moves</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-orange-600">x{combo > 0 ? Math.min(combo, 5) : 1}</div>
-                <div className="text-xs text-gray-600">Combo</div>
-              </div>
-            </div>
-
-            <div className="mb-4">
-              <div className="w-full bg-gray-200 rounded-full h-3">
-                <div className="bg-gradient-to-r from-green-500 to-blue-500 h-3 rounded-full transition-all"
-                  style={{ width: `${Math.min((score / targetScore) * 100, 100)}%` }}></div>
-              </div>
-            </div>
-
-            <div className="mb-3">
-              <div className="text-xs text-gray-600 text-center mb-2">
-                💡 Match 4 = Rocket | Match 5 = Bomb | L/T Shape = Rainbow | Click special pieces to activate!
-              </div>
-            </div>
-
-            <div className="flex gap-2 justify-center mb-4">
-              <button onClick={() => setSelectedPowerup(selectedPowerup === 'hammer' ? null : 'hammer')}
-                disabled={powerups.hammer <= 0 || animating}
-                className={`px-4 py-2 rounded-lg font-semibold transition-all ${
-                  selectedPowerup === 'hammer' ? 'bg-orange-500 text-white ring-2 ring-orange-300' :
-                  powerups.hammer > 0 ? 'bg-gray-200 hover:bg-gray-300' : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                }`}>
-                🔨 {powerups.hammer}
-              </button>
-              <button onClick={() => setSelectedPowerup(selectedPowerup === 'colorBomb' ? null : 'colorBomb')}
-                disabled={powerups.colorBomb <= 0 || animating}
-                className={`px-4 py-2 rounded-lg font-semibold transition-all ${
-                  selectedPowerup === 'colorBomb' ? 'bg-purple-500 text-white ring-2 ring-purple-300' :
-                  powerups.colorBomb > 0 ? 'bg-gray-200 hover:bg-gray-300' : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                }`}>
-                💣 {powerups.colorBomb}
-              </button>
-              <button onClick={() => {
-                if (powerups.shuffle > 0 && !animating) {
-                  usePowerup('shuffle', 0, 0);
-                }
-              }}
-                disabled={powerups.shuffle <= 0 || animating}
-                className={`px-4 py-2 rounded-lg font-semibold transition-all ${
-                  powerups.shuffle > 0 ? 'bg-gray-200 hover:bg-gray-300' : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                }`}>
-                🔀 {powerups.shuffle}
-              </button>
-            </div>
-            
-            <div className="bg-gray-100 rounded-xl p-1 sm:p-2 mb-4 overflow-x-auto">
-              <div className="inline-block min-w-max mx-auto">
-                {puzzleBoard.map((row, i) => (
-                  <div key={i} className="flex justify-center">
-                    {row.map((cell, j) => {
-                      const isSpecial = Object.values(SPECIAL_TYPES).includes(cell);
-                      const isAnimating = matchAnimations.has(`${i},${j}`);
-                      const isSelected = selectedCell?.row === i && selectedCell?.col === j;
-                      
-                      return (
-                        <button
-                          key={`${i}-${j}`}
-                          onClick={() => handleCellClick(i, j)}
-                          disabled={animating && !isSelected}
-                          className={`w-10 h-10 sm:w-11 sm:h-11 m-0.5 sm:m-1 text-lg sm:text-xl rounded-lg transition-all duration-200 active:scale-95 ${
-                            isAnimating
-                              ? 'bg-yellow-400 scale-125 animate-pulse'
-                              : isSelected
-                              ? 'bg-yellow-300 scale-110 shadow-lg ring-2 ring-yellow-500'
-                              : isSpecial
-                              ? 'bg-gradient-to-br from-purple-200 to-pink-200 active:from-purple-300 active:to-pink-300 shadow-md'
-                              : cell === '💫'
-                              ? 'bg-gray-300 opacity-50'
-                              : 'bg-white active:bg-gray-50 active:scale-105'
-                          } ${animating && !isSelected ? 'opacity-75' : ''}`}
-                        >
-                          {cell === '💫' ? '✨' : cell}
-                        </button>
-                      );
-                    })}
-                  </div>
-                ))}
-              </div>
-            </div>
-            
-            <div className="grid grid-cols-2 gap-3">
+      <div className="min-h-screen bg-gradient-to-br from-purple-200 via-blue-200 to-pink-200 p-4">
+        <div className="max-w-4xl mx-auto">
+          <div className="bg-white rounded-2xl p-6 mb-4 shadow-lg">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-3xl font-bold text-purple-600">🎮 Brick Games</h2>
               <button onClick={() => setGameState('pet')}
-                className="bg-gray-500 text-white py-3 rounded-xl font-semibold hover:bg-gray-600 transition-all">
+                className="bg-gray-500 text-white px-4 py-2 rounded-lg font-semibold active:bg-gray-600">
                 ← Back
               </button>
-              <button onClick={completePuzzle}
-                className="bg-green-500 text-white py-3 rounded-xl font-semibold hover:bg-green-600 flex items-center justify-center gap-2 transition-all">
-                <Trophy size={20} /> {score >= targetScore ? 'Victory!' : 'End'}
+            </div>
+            
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6">
+              <div className="bg-gradient-to-br from-red-100 to-orange-100 rounded-xl p-6">
+                <h3 className="text-2xl font-bold mb-2">🧱 Tetris</h3>
+                <p className="text-gray-600 mb-4 text-sm">Classic falling blocks! Clear lines to score points!</p>
+                <button onClick={() => {
+                  initializeTetris();
+                  setBrickGameType('tetris');
+                  setGameState('tetris');
+                }}
+                  className="w-full bg-red-500 text-white py-3 rounded-lg font-semibold active:bg-red-600 min-h-[48px]">
+                  Play Tetris
+                </button>
+              </div>
+
+              <div className="bg-gradient-to-br from-green-100 to-teal-100 rounded-xl p-6">
+                <h3 className="text-2xl font-bold mb-2">🐍 Snake</h3>
+                <p className="text-gray-600 mb-4 text-sm">Grow your snake by eating food. Avoid walls and yourself!</p>
+                <button onClick={() => {
+                  setBrickGameType('snake');
+                  setGameState('snake');
+                }}
+                  className="w-full bg-green-500 text-white py-3 rounded-lg font-semibold active:bg-green-600 min-h-[48px]">
+                  Play Snake
+                </button>
+              </div>
+
+              <div className="bg-gradient-to-br from-blue-100 to-indigo-100 rounded-xl p-6">
+                <h3 className="text-2xl font-bold mb-2">🎾 Brick Breaker</h3>
+                <p className="text-gray-600 mb-4 text-sm">Break all the bricks with your paddle and ball!</p>
+                <button onClick={() => {
+                  setBrickGameType('brickbreaker');
+                  setGameState('brickbreaker');
+                }}
+                  className="w-full bg-blue-500 text-white py-3 rounded-lg font-semibold active:bg-blue-600 min-h-[48px]">
+                  Play Brick Breaker
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (gameState === 'tetris') {
+    const displayBoard = tetrisBoard.map(row => [...row]);
+    if (tetrisPiece && !tetrisGameOver) {
+      for (let y = 0; y < tetrisPiece.shape.length; y++) {
+        for (let x = 0; x < tetrisPiece.shape[y].length; x++) {
+          if (tetrisPiece.shape[y][x]) {
+            const boardY = tetrisPiece.y + y;
+            const boardX = tetrisPiece.x + x;
+            if (boardY >= 0 && boardY < 20 && boardX >= 0 && boardX < 10) {
+              displayBoard[boardY][boardX] = tetrisPiece.color;
+            }
+          }
+        }
+      }
+    }
+
+    const completeGame = () => {
+      const coinsEarned = Math.floor(tetrisScore / 10);
+      setGameData(prev => ({
+        ...prev,
+        coins: prev.coins + coinsEarned,
+        puzzlesCompleted: prev.puzzlesCompleted + 1,
+        pet: { ...prev.pet, happiness: Math.min(100, prev.pet.happiness + 5) },
+        sharedProgress: Math.min(100, prev.sharedProgress + 5)
+      }));
+      setGameState('pet');
+    };
+
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-red-200 via-orange-200 to-pink-200 p-4">
+        <div className="max-w-md mx-auto">
+          <div className="bg-white rounded-2xl p-4 shadow-lg">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-2xl font-bold text-red-600">🧱 Tetris</h2>
+              <button onClick={() => setGameState('brickGames')}
+                className="bg-gray-500 text-white px-3 py-2 rounded-lg font-semibold active:bg-gray-600 text-sm">
+                ← Back
               </button>
+            </div>
+
+            <div className="grid grid-cols-3 gap-2 mb-4 text-center">
+              <div>
+                <div className="text-xl font-bold text-purple-600">{tetrisScore}</div>
+                <div className="text-xs text-gray-600">Score</div>
+              </div>
+              <div>
+                <div className="text-xl font-bold text-blue-600">{tetrisLevel}</div>
+                <div className="text-xs text-gray-600">Level</div>
+              </div>
+              <div>
+                <div className="text-xl font-bold text-green-600">{tetrisLines}</div>
+                <div className="text-xs text-gray-600">Lines</div>
+              </div>
+            </div>
+
+            {tetrisGameOver ? (
+              <div className="text-center mb-4 p-4 bg-red-50 rounded-lg">
+                <div className="text-2xl font-bold mb-2">Game Over!</div>
+                <div className="text-green-600 font-semibold mb-4">+{Math.floor(tetrisScore / 10)} Coins! 🪙</div>
+                <div className="grid grid-cols-2 gap-2">
+                  <button onClick={initializeTetris}
+                    className="bg-blue-500 text-white py-2 rounded-lg font-semibold active:bg-blue-600">
+                    Play Again
+                  </button>
+                  <button onClick={completeGame}
+                    className="bg-green-500 text-white py-2 rounded-lg font-semibold active:bg-green-600">
+                    Collect Rewards
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <>
+                {tetrisPaused && (
+                  <div className="text-center mb-4 p-4 bg-yellow-50 rounded-lg">
+                    <div className="text-xl font-bold">⏸ Paused</div>
+                  </div>
+                )}
+                <div className="bg-gray-900 rounded-lg p-2 mb-4 mx-auto" style={{ width: 'fit-content' }}>
+                  {displayBoard.map((row, i) => (
+                    <div key={i} className="flex">
+                      {row.map((cell, j) => (
+                        <div
+                          key={`${i}-${j}`}
+                          className="w-6 h-6 sm:w-7 sm:h-7 border border-gray-700"
+                          style={{ backgroundColor: cell || '#111' }}
+                        />
+                      ))}
+                    </div>
+                  ))}
+                </div>
+
+                <div className="grid grid-cols-3 gap-2 mb-2">
+                  <button onClick={() => moveTetrisPiece('left')}
+                    className="bg-blue-500 text-white py-3 rounded-lg font-bold active:bg-blue-600 min-h-[48px]">
+                    ←
+                  </button>
+                  <button onClick={() => moveTetrisPiece('rotate')}
+                    className="bg-purple-500 text-white py-3 rounded-lg font-bold active:bg-purple-600 min-h-[48px]">
+                    ↻
+                  </button>
+                  <button onClick={() => moveTetrisPiece('right')}
+                    className="bg-blue-500 text-white py-3 rounded-lg font-bold active:bg-blue-600 min-h-[48px]">
+                    →
+                  </button>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <button onClick={() => moveTetrisPiece('down')}
+                    className="bg-orange-500 text-white py-3 rounded-lg font-bold active:bg-orange-600 min-h-[48px]">
+                    ↓ Down
+                  </button>
+                  <button onClick={() => setTetrisPaused(!tetrisPaused)}
+                    className="bg-yellow-500 text-white py-3 rounded-lg font-bold active:bg-yellow-600 min-h-[48px]">
+                    ⏸ {tetrisPaused ? 'Resume' : 'Pause'}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (gameState === 'snake') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-green-200 via-teal-200 to-blue-200 p-4">
+        <div className="max-w-md mx-auto">
+          <div className="bg-white rounded-2xl p-4 shadow-lg">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-2xl font-bold text-green-600">🐍 Snake</h2>
+              <button onClick={() => setGameState('brickGames')}
+                className="bg-gray-500 text-white px-3 py-2 rounded-lg font-semibold active:bg-gray-600 text-sm">
+                ← Back
+              </button>
+            </div>
+            <div className="text-center p-8 bg-gray-100 rounded-lg mb-4">
+              <p className="text-gray-600 mb-4">Snake game coming soon!</p>
+              <p className="text-sm text-gray-500">This classic game will be available in the next update.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (gameState === 'brickbreaker') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-200 via-indigo-200 to-purple-200 p-4">
+        <div className="max-w-md mx-auto">
+          <div className="bg-white rounded-2xl p-4 shadow-lg">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-2xl font-bold text-blue-600">🎾 Brick Breaker</h2>
+              <button onClick={() => setGameState('brickGames')}
+                className="bg-gray-500 text-white px-3 py-2 rounded-lg font-semibold active:bg-gray-600 text-sm">
+                ← Back
+              </button>
+            </div>
+            <div className="text-center p-8 bg-gray-100 rounded-lg mb-4">
+              <p className="text-gray-600 mb-4">Brick Breaker game coming soon!</p>
+              <p className="text-sm text-gray-500">This classic game will be available in the next update.</p>
             </div>
           </div>
         </div>
