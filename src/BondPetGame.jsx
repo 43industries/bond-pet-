@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Heart, Star, Gift, Sparkles, ShoppingBag, Zap, Trophy, Gamepad2 } from 'lucide-react';
 
 const BondPetGame = () => {
@@ -38,6 +38,12 @@ const BondPetGame = () => {
   const [tetrisGameOver, setTetrisGameOver] = useState(false);
   const [tetrisPaused, setTetrisPaused] = useState(false);
   const [tetrisFallTime, setTetrisFallTime] = useState(1000);
+  const tetrisRef = useRef({ board: null, piece: null, gameOver: false, paused: false });
+
+  // Keep ref in sync
+  useEffect(() => {
+    tetrisRef.current = { board: tetrisBoard, piece: tetrisPiece, gameOver: tetrisGameOver, paused: tetrisPaused };
+  }, [tetrisBoard, tetrisPiece, tetrisGameOver, tetrisPaused]);
 
   // Snake states
   const [snakeGame, setSnakeGame] = useState(null);
@@ -1471,30 +1477,64 @@ const BondPetGame = () => {
 
   // Auto fall effect
   useEffect(() => {
-    if (gameState === 'tetris' && !tetrisGameOver && !tetrisPaused && tetrisPiece) {
-      const interval = setInterval(() => {
-        moveTetrisPiece('down');
-      }, tetrisFallTime);
-      return () => clearInterval(interval);
-    }
-  }, [gameState === 'tetris', tetrisPiece, tetrisGameOver, tetrisPaused, tetrisFallTime]);
+    if (gameState !== 'tetris') return;
+    
+    const interval = setInterval(() => {
+      const { board, piece, gameOver, paused } = tetrisRef.current;
+      if (!piece || gameOver || paused) return;
+      
+      const newPiece = { ...piece, y: piece.y + 1 };
+      
+      if (isValidPosition(board, newPiece)) {
+        setTetrisPiece(newPiece);
+      } else {
+        // Place piece
+        const placedBoard = placeTetrisPiece(board, piece);
+        const { board: clearedBoard, linesCleared } = clearTetrisLines(placedBoard);
+        setTetrisBoard(clearedBoard);
+        
+        if (linesCleared > 0) {
+          setTetrisScore(prev => {
+            const newScore = prev + [0, 100, 300, 500, 800][linesCleared] * (tetrisLevel + 1);
+            return newScore;
+          });
+          setTetrisLines(prev => prev + linesCleared);
+          setTetrisLevel(prev => Math.floor((prev + linesCleared) / 10) + 1);
+          setTetrisFallTime(prev => Math.max(100, prev - 50));
+        }
+        
+        const nextPiece = createNewTetrisPiece();
+        if (!isValidPosition(clearedBoard, nextPiece)) {
+          setTetrisGameOver(true);
+        } else {
+          setTetrisPiece(nextPiece);
+        }
+      }
+    }, tetrisFallTime);
+    
+    return () => clearInterval(interval);
+  }, [gameState, tetrisFallTime, tetrisLevel]);
 
   // Keyboard controls
   useEffect(() => {
     if (gameState !== 'tetris') return;
     
     const handleKeyPress = (e) => {
-      if (tetrisGameOver || tetrisPaused) return;
+      if (tetrisGameOver || tetrisPaused) {
+        if (e.key === 'p' || e.key === 'P') setTetrisPaused(!tetrisPaused);
+        return;
+      }
+      e.preventDefault();
       if (e.key === 'ArrowLeft') moveTetrisPiece('left');
-      if (e.key === 'ArrowRight') moveTetrisPiece('right');
-      if (e.key === 'ArrowDown') moveTetrisPiece('down');
-      if (e.key === 'ArrowUp' || e.key === ' ') moveTetrisPiece('rotate');
-      if (e.key === 'p' || e.key === 'P') setTetrisPaused(!tetrisPaused);
+      else if (e.key === 'ArrowRight') moveTetrisPiece('right');
+      else if (e.key === 'ArrowDown') moveTetrisPiece('down');
+      else if (e.key === 'ArrowUp' || e.key === ' ') moveTetrisPiece('rotate');
+      else if (e.key === 'p' || e.key === 'P') setTetrisPaused(!tetrisPaused);
     };
     
     window.addEventListener('keydown', handleKeyPress);
     return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [gameState === 'tetris', tetrisPiece, tetrisGameOver, tetrisPaused]);
+  }, [gameState, tetrisPiece, tetrisGameOver, tetrisPaused]);
 
   if (gameState === 'brickGames') {
     return (
