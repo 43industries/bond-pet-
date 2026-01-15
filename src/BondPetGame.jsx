@@ -131,12 +131,6 @@ const BondPetGame = () => {
   const [connect4Player, setConnect4Player] = useState('🔴');
   const [connect4Winner, setConnect4Winner] = useState(null);
   
-  // Chess states
-  const [chessBoard, setChessBoard] = useState([]);
-  const [chessPlayer, setChessPlayer] = useState('white');
-  const [chessSelected, setChessSelected] = useState(null);
-  const [chessGameOver, setChessGameOver] = useState(false);
-  
   // Checkers states
   const [checkersBoard, setCheckersBoard] = useState([]);
   const [checkersPlayer, setCheckersPlayer] = useState('red');
@@ -1502,26 +1496,6 @@ const BondPetGame = () => {
     setConnect4Winner(null);
   };
 
-  const initializeChess = () => {
-    const board = Array(8).fill(null).map(() => Array(8).fill(null));
-    // Set up initial chess board - Black pieces
-    const blackPieces = ['♜', '♞', '♝', '♛', '♚', '♝', '♞', '♜'];
-    for (let i = 0; i < 8; i++) {
-      board[0][i] = { type: blackPieces[i], color: 'black' };
-      board[1][i] = { type: '♟', color: 'black' };
-    }
-    // White pieces
-    const whitePieces = ['♖', '♘', '♗', '♕', '♔', '♗', '♘', '♖'];
-    for (let i = 0; i < 8; i++) {
-      board[7][i] = { type: whitePieces[i], color: 'white' };
-      board[6][i] = { type: '♙', color: 'white' };
-    }
-    setChessBoard(board);
-    setChessPlayer('white');
-    setChessSelected(null);
-    setChessGameOver(false);
-  };
-
   const initializeCheckers = () => {
     const board = Array(8).fill(null).map(() => Array(8).fill(null));
     // Set up checkers board
@@ -2591,20 +2565,6 @@ const BondPetGame = () => {
     setTimeout(() => checkMatches(newBoard), 200);
   };
 
-  const completePuzzle = () => {
-    const success = score >= targetScore;
-    const coinsEarned = success ? Math.floor(score / 10) + 50 : Math.floor(score / 20);
-    
-    setGameData(prev => ({
-      ...prev,
-      coins: prev.coins + coinsEarned,
-      puzzlesCompleted: success ? prev.puzzlesCompleted + 1 : prev.puzzlesCompleted,
-      sharedProgress: prev.sharedProgress + (success ? 10 : 5),
-      pet: { ...prev.pet, happiness: Math.min(100, prev.pet.happiness + (success ? 10 : 5)) }
-    }));
-    
-    setGameState('pet');
-  };
 
   useEffect(() => {
     if (gameState === 'puzzle' && puzzleBoard.length === 0) {
@@ -3597,75 +3557,6 @@ const BondPetGame = () => {
                 </div>
               </>
             )}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // Chess Game
-  if (gameState === 'chess') {
-    if (chessBoard.length === 0) initializeChess();
-
-    const handleChessClick = (row, col) => {
-      if (chessGameOver) return;
-      
-      if (!chessSelected) {
-        if (chessBoard[row][col] && chessBoard[row][col].color === chessPlayer) {
-          setChessSelected({ row, col });
-        }
-      } else {
-        // Move piece
-        const newBoard = chessBoard.map(r => [...r]);
-        const piece = newBoard[chessSelected.row][chessSelected.col];
-        newBoard[row][col] = piece;
-        newBoard[chessSelected.row][chessSelected.col] = null;
-        setChessBoard(newBoard);
-        setChessSelected(null);
-        setChessPlayer(chessPlayer === 'white' ? 'black' : 'white');
-      }
-    };
-
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-amber-200 via-orange-200 to-yellow-200 p-4">
-        <div className="max-w-2xl mx-auto">
-          <div className="bg-white rounded-2xl p-4 shadow-lg">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-2xl font-bold text-amber-600">♔ Chess</h2>
-              <button onClick={() => setGameState('boardGames')}
-                className="bg-gray-500 text-white px-3 py-2 rounded-lg font-semibold active:bg-gray-600 text-sm">
-                ← Back
-              </button>
-            </div>
-
-            <div className="text-center mb-4">
-              <div className="text-lg font-semibold">
-                {chessPlayer === 'white' ? '⚪ White' : '⚫ Black'}'s Turn
-              </div>
-            </div>
-
-            <div className="bg-amber-100 rounded-lg p-2 mb-4 mx-auto" style={{ width: 'fit-content' }}>
-              {chessBoard.map((row, i) => (
-                <div key={i} className="flex">
-                  {row.map((cell, j) => (
-                    <button
-                      key={`${i}-${j}`}
-                      onClick={() => handleChessClick(i, j)}
-                      className={`w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center text-2xl sm:text-3xl ${
-                        (i + j) % 2 === 0 ? 'bg-amber-200' : 'bg-amber-400'
-                      } ${chessSelected?.row === i && chessSelected?.col === j ? 'ring-4 ring-blue-500' : ''} active:scale-95`}
-                    >
-                      {cell ? cell.type : ''}
-                    </button>
-                  ))}
-                </div>
-              ))}
-            </div>
-
-            <button onClick={initializeChess}
-              className="w-full bg-amber-500 text-white py-3 rounded-lg font-semibold active:bg-amber-600 min-h-[48px]">
-              New Game
-            </button>
           </div>
         </div>
       </div>

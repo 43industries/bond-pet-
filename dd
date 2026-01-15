@@ -1,0 +1,532 @@
+import React, { useState, useEffect } from 'react';
+import { Heart, Star, Gift, Sparkles, ShoppingBag, Zap, Trophy } from 'lucide-react';
+
+const BondPetGame = () => {
+  const [gameState, setGameState] = useState('welcome');
+  const [playerName, setPlayerName] = useState('');
+  const [currentPlayer, setCurrentPlayer] = useState(null);
+  const [relationshipMode, setRelationshipMode] = useState(null);
+  const [gameData, setGameData] = useState({
+    pet: { name: 'Buddy', happiness: 50, level: 1 },
+    inventory: [],
+    coins: 0,
+    puzzlesCompleted: 0,
+    sharedProgress: 0
+  });
+
+  const [puzzleBoard, setPuzzleBoard] = useState([]);
+  const [selectedCell, setSelectedCell] = useState(null);
+  const [score, setScore] = useState(0);
+  const [moves, setMoves] = useState(25);
+  const [combo, setCombo] = useState(0);
+  const [specialPieces, setSpecialPieces] = useState({});
+  const [powerups, setPowerups] = useState({ shuffle: 1, hammer: 2, colorBomb: 1 });
+  const [selectedPowerup, setSelectedPowerup] = useState(null);
+  const [targetScore, setTargetScore] = useState(1000);
+
+  const colors = ['🔴', '🔵', '🟢', '🟡', '🟣', '🟠'];
+  
+  const items = {
+    friends: [
+      { id: 'skateboard', name: 'Skateboard', cost: 50, icon: '🛹' },
+      { id: 'cap', name: 'Cool Cap', cost: 30, icon: '🧢' },
+      { id: 'game', name: 'Video Game', cost: 40, icon: '🎮' },
+      { id: 'pizza', name: 'Pizza Party', cost: 25, icon: '🍕' }
+    ],
+    couples: [
+      { id: 'rose', name: 'Rose', cost: 50, icon: '🌹' },
+      { id: 'heart', name: 'Heart Necklace', cost: 60, icon: '💝' },
+      { id: 'candle', name: 'Romantic Candles', cost: 40, icon: '🕯️' },
+      { id: 'chocolate', name: 'Chocolates', cost: 30, icon: '🍫' }
+    ],
+    family: [
+      { id: 'book', name: 'Story Book', cost: 35, icon: '📚' },
+      { id: 'photo', name: 'Family Photo', cost: 45, icon: '📷' },
+      { id: 'cake', name: 'Birthday Cake', cost: 50, icon: '🎂' },
+      { id: 'blanket', name: 'Cozy Blanket', cost: 40, icon: '🧸' }
+    ]
+  };
+
+  const initializePuzzle = () => {
+    const board = Array(8).fill(0).map(() => 
+      Array(8).fill(0).map(() => colors[Math.floor(Math.random() * colors.length)])
+    );
+    setPuzzleBoard(board);
+    setMoves(25);
+    setScore(0);
+    setCombo(0);
+    setSpecialPieces({});
+    setTargetScore(1000 + (gameData.puzzlesCompleted * 200));
+  };
+
+  const handleCellClick = (row, col) => {
+    if (moves <= 0) return;
+    
+    if (selectedPowerup) {
+      usePowerup(selectedPowerup, row, col);
+      return;
+    }
+    
+    if (!selectedCell) {
+      setSelectedCell({ row, col });
+    } else {
+      const rowDiff = Math.abs(selectedCell.row - row);
+      const colDiff = Math.abs(selectedCell.col - col);
+      
+      if ((rowDiff === 1 && colDiff === 0) || (rowDiff === 0 && colDiff === 1)) {
+        swapCells(selectedCell, { row, col });
+      }
+      setSelectedCell(null);
+    }
+  };
+
+  const usePowerup = (powerup, row, col) => {
+    if (powerups[powerup] <= 0) return;
+    
+    const newBoard = puzzleBoard.map(r => [...r]);
+    let cellsToRemove = [];
+    
+    if (powerup === 'hammer') {
+      cellsToRemove.push([row, col]);
+      setScore(s => s + 50);
+    } else if (powerup === 'shuffle') {
+      const flat = newBoard.flat();
+      for (let i = flat.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [flat[i], flat[j]] = [flat[j], flat[i]];
+      }
+      let idx = 0;
+      for (let i = 0; i < 8; i++) {
+        for (let j = 0; j < 8; j++) {
+          newBoard[i][j] = flat[idx++];
+        }
+      }
+      setPuzzleBoard(newBoard);
+      setPowerups(prev => ({ ...prev, shuffle: prev.shuffle - 1 }));
+      setSelectedPowerup(null);
+      return;
+    } else if (powerup === 'colorBomb') {
+      const color = newBoard[row][col];
+      for (let i = 0; i < 8; i++) {
+        for (let j = 0; j < 8; j++) {
+          if (newBoard[i][j] === color) cellsToRemove.push([i, j]);
+        }
+      }
+      setScore(s => s + cellsToRemove.length * 50);
+    }
+    
+    if (cellsToRemove.length > 0) {
+      cellsToRemove.forEach(([r, c]) => { newBoard[r][c] = '💫'; });
+      setPuzzleBoard(newBoard);
+      setTimeout(() => dropPieces(newBoard, cellsToRemove), 300);
+    }
+    
+    setPowerups(prev => ({ ...prev, [powerup]: prev[powerup] - 1 }));
+    setSelectedPowerup(null);
+  };
+
+  const swapCells = (cell1, cell2) => {
+    const newBoard = puzzleBoard.map(row => [...row]);
+    [newBoard[cell1.row][cell1.col], newBoard[cell2.row][cell2.col]] = 
+    [newBoard[cell2.row][cell2.col], newBoard[cell1.row][cell1.col]];
+    
+    if (!checkForMatches(newBoard, cell1) && !checkForMatches(newBoard, cell2)) return;
+    
+    setPuzzleBoard(newBoard);
+    setMoves(moves - 1);
+    setTimeout(() => checkMatches(newBoard), 100);
+  };
+
+  const checkForMatches = (board, cell) => {
+    const { row, col } = cell;
+    const color = board[row][col];
+    
+    let hCount = 1;
+    for (let i = col - 1; i >= 0 && board[row][i] === color; i--) hCount++;
+    for (let i = col + 1; i < 8 && board[row][i] === color; i++) hCount++;
+    
+    let vCount = 1;
+    for (let i = row - 1; i >= 0 && board[i][col] === color; i--) vCount++;
+    for (let i = row + 1; i < 8 && board[i][col] === color; i++) vCount++;
+    
+    return hCount >= 3 || vCount >= 3;
+  };
+
+  const checkMatches = (board) => {
+    let matches = [];
+    let matchGroups = [];
+    
+    for (let i = 0; i < 8; i++) {
+      for (let j = 0; j < 6; j++) {
+        let len = 1;
+        while (j + len < 8 && board[i][j] === board[i][j + len] && board[i][j] !== '💫') len++;
+        if (len >= 3) {
+          const group = [];
+          for (let l = j; l < j + len; l++) {
+            matches.push([i, l]);
+            group.push([i, l]);
+          }
+          matchGroups.push({ size: len });
+          j += len - 1;
+        }
+      }
+    }
+    
+    for (let j = 0; j < 8; j++) {
+      for (let i = 0; i < 6; i++) {
+        let len = 1;
+        while (i + len < 8 && board[i][j] === board[i + len][j] && board[i][j] !== '💫') len++;
+        if (len >= 3) {
+          for (let l = i; l < i + len; l++) {
+            if (!matches.some(([r, c]) => r === l && c === j)) matches.push([l, j]);
+          }
+          matchGroups.push({ size: len });
+          i += len - 1;
+        }
+      }
+    }
+    
+    if (matches.length > 0) {
+      const newCombo = combo + 1;
+      const multiplier = Math.min(newCombo, 5);
+      setScore(s => s + matches.length * 30 * multiplier);
+      setCombo(newCombo);
+      
+      const newBoard = board.map(row => [...row]);
+      matches.forEach(([r, c]) => { newBoard[r][c] = '💫'; });
+      setPuzzleBoard(newBoard);
+      
+      setTimeout(() => dropPieces(newBoard, matches), 400);
+    } else {
+      setCombo(0);
+    }
+  };
+
+  const dropPieces = (board, matches) => {
+    const newBoard = board.map(row => [...row]);
+    const matchSet = new Set(matches.map(m => `${m[0]},${m[1]}`));
+    
+    for (let col = 0; col < 8; col++) {
+      let empty = 0;
+      for (let row = 7; row >= 0; row--) {
+        if (matchSet.has(`${row},${col}`)) {
+          empty++;
+        } else if (empty > 0) {
+          newBoard[row + empty][col] = newBoard[row][col];
+          newBoard[row][col] = colors[Math.floor(Math.random() * colors.length)];
+        }
+      }
+      for (let i = 0; i < empty; i++) {
+        newBoard[i][col] = colors[Math.floor(Math.random() * colors.length)];
+      }
+    }
+    
+    setPuzzleBoard(newBoard);
+    setTimeout(() => checkMatches(newBoard), 200);
+  };
+
+  const completePuzzle = () => {
+    const success = score >= targetScore;
+    const coinsEarned = success ? Math.floor(score / 10) + 50 : Math.floor(score / 20);
+    
+    setGameData(prev => ({
+      ...prev,
+      coins: prev.coins + coinsEarned,
+      puzzlesCompleted: success ? prev.puzzlesCompleted + 1 : prev.puzzlesCompleted,
+      sharedProgress: prev.sharedProgress + (success ? 10 : 5),
+      pet: { ...prev.pet, happiness: Math.min(100, prev.pet.happiness + (success ? 10 : 5)) }
+    }));
+    
+    if (success) {
+      setPowerups(prev => ({
+        shuffle: prev.shuffle + 1,
+        hammer: prev.hammer + 1,
+        colorBomb: prev.colorBomb + 1
+      }));
+    }
+    
+    setGameState('pet');
+  };
+
+  const buyItem = (item) => {
+    if (gameData.coins >= item.cost) {
+      setGameData(prev => ({
+        ...prev,
+        coins: prev.coins - item.cost,
+        inventory: [...prev.inventory, item],
+        pet: { ...prev.pet, happiness: Math.min(100, prev.pet.happiness + 10) }
+      }));
+    }
+  };
+
+  const getPetMood = () => {
+    const h = gameData.pet.happiness;
+    if (h > 80) return relationshipMode === 'friends' ? '😎' : relationshipMode === 'couples' ? '🥰' : '😊';
+    if (h > 50) return '😊';
+    if (h > 30) return '😐';
+    return '😢';
+  };
+
+  const getPetMessage = () => {
+    const msgs = {
+      friends: ["Let's go on an adventure! 🎮", "You two are awesome!", "Pizza time? 🍕", "Squad goals! ✨"],
+      couples: ["You two are adorable! 💕", "Love is in the air! 🌹", "Date night ideas? ✨", "Someone's thinking of you 💝"],
+      family: ["Family time is the best! 🏠", "I'm proud of you! ⭐", "Let's make memories! 📷", "Home sweet home! 💛"]
+    };
+    return msgs[relationshipMode]?.[Math.floor(Math.random() * 4)] || msgs.friends[0];
+  };
+
+  useEffect(() => {
+    if (gameState === 'puzzle' && puzzleBoard.length === 0) initializePuzzle();
+  }, [gameState]);
+
+  if (gameState === 'welcome') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-purple-400 via-pink-400 to-blue-400 p-8 flex items-center justify-center">
+        <div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl">
+          <div className="text-center mb-6">
+            <h1 className="text-4xl font-bold text-purple-600 mb-2">🐾 BondPet</h1>
+            <p className="text-gray-600">Build relationships through play!</p>
+          </div>
+          
+          <div className="space-y-4">
+            <input
+              type="text"
+              placeholder="Enter your name"
+              value={playerName}
+              onChange={(e) => setPlayerName(e.target.value)}
+              className="w-full px-4 py-3 rounded-xl border-2 border-purple-300 focus:border-purple-500 outline-none"
+            />
+            
+            <div className="space-y-3">
+              <p className="text-sm font-semibold text-gray-700">Choose your relationship type:</p>
+              {['friends', 'couples', 'family'].map((mode, idx) => (
+                <button
+                  key={mode}
+                  onClick={() => {
+                    setRelationshipMode(mode);
+                    setCurrentPlayer(playerName || 'Player 1');
+                    setGameState('pet');
+                  }}
+                  className={`w-full text-white py-4 rounded-xl font-semibold hover:shadow-lg transition-all ${
+                    idx === 0 ? 'bg-gradient-to-r from-yellow-400 to-orange-400' :
+                    idx === 1 ? 'bg-gradient-to-r from-pink-400 to-red-400' :
+                    'bg-gradient-to-r from-green-400 to-blue-400'
+                  }`}
+                >
+                  {idx === 0 ? '👫 Best Friends Mode' : idx === 1 ? '💕 Couples Mode' : '👨‍👩‍👧 Family Mode'}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (gameState === 'pet') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-200 via-purple-200 to-pink-200 p-4">
+        <div className="max-w-4xl mx-auto">
+          <div className="bg-white rounded-2xl p-4 mb-4 shadow-lg">
+            <div className="flex justify-between items-center">
+              <div>
+                <h2 className="text-2xl font-bold text-purple-600">Hello, {currentPlayer}!</h2>
+                <p className="text-sm text-gray-600">
+                  {relationshipMode === 'friends' && '👫 Best Friends Mode'}
+                  {relationshipMode === 'couples' && '💕 Couples Mode'}
+                  {relationshipMode === 'family' && '👨‍👩‍👧 Family Mode'}
+                </p>
+              </div>
+              <div className="text-right">
+                <div className="text-2xl font-bold text-yellow-600">🪙 {gameData.coins}</div>
+                <div className="text-sm text-gray-600">Puzzles: {gameData.puzzlesCompleted}</div>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-2xl p-6 mb-4 shadow-lg">
+            <div className="text-center">
+              <div className="text-8xl mb-4">{getPetMood()}</div>
+              <h3 className="text-2xl font-bold text-gray-800 mb-2">{gameData.pet.name}</h3>
+              <p className="text-gray-600 italic mb-4">"{getPetMessage()}"</p>
+              
+              <div className="mb-4">
+                <div className="flex items-center justify-center gap-2 mb-2">
+                  <Heart className="text-red-500" size={20} />
+                  <span className="font-semibold">Happiness: {gameData.pet.happiness}%</span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-4">
+                  <div className="bg-gradient-to-r from-pink-500 to-red-500 h-4 rounded-full transition-all"
+                    style={{ width: `${gameData.pet.happiness}%` }}></div>
+                </div>
+              </div>
+
+              <div className="mb-4">
+                <div className="flex items-center justify-center gap-2 mb-2">
+                  <Sparkles className="text-purple-500" size={20} />
+                  <span className="font-semibold">Shared Progress: {gameData.sharedProgress}%</span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-4">
+                  <div className="bg-gradient-to-r from-purple-500 to-blue-500 h-4 rounded-full transition-all"
+                    style={{ width: `${gameData.sharedProgress}%` }}></div>
+                </div>
+              </div>
+
+              {gameData.inventory.length > 0 && (
+                <div className="mt-4">
+                  <p className="text-sm font-semibold mb-2">Your Pet's Items:</p>
+                  <div className="flex flex-wrap gap-2 justify-center">
+                    {gameData.inventory.map((item, idx) => (
+                      <span key={idx} className="text-2xl">{item.icon}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <button onClick={() => setGameState('puzzle')}
+              className="bg-gradient-to-r from-purple-500 to-blue-500 text-white py-4 rounded-xl font-semibold hover:shadow-lg transition-all flex items-center justify-center gap-2">
+              <Star size={20} /> Play Puzzle
+            </button>
+            <button onClick={() => setGameState('shop')}
+              className="bg-gradient-to-r from-green-500 to-teal-500 text-white py-4 rounded-xl font-semibold hover:shadow-lg transition-all flex items-center justify-center gap-2">
+              <ShoppingBag size={20} /> Shop
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (gameState === 'shop') {
+    const availableItems = items[relationshipMode] || items.friends;
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-green-200 via-teal-200 to-blue-200 p-4">
+        <div className="max-w-4xl mx-auto">
+          <div className="bg-white rounded-2xl p-6 mb-4 shadow-lg">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-2xl font-bold text-teal-600">🛍️ Shop</h2>
+              <div className="text-xl font-bold text-yellow-600">🪙 {gameData.coins}</div>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-4 mb-4">
+              {availableItems.map((item) => (
+                <div key={item.id} className="bg-gradient-to-br from-white to-gray-50 rounded-xl p-4 border-2 border-gray-200">
+                  <div className="text-4xl text-center mb-2">{item.icon}</div>
+                  <h3 className="font-semibold text-center mb-1">{item.name}</h3>
+                  <p className="text-sm text-gray-600 text-center mb-3">🪙 {item.cost}</p>
+                  <button onClick={() => buyItem(item)} disabled={gameData.coins < item.cost}
+                    className={`w-full py-2 rounded-lg font-semibold ${
+                      gameData.coins >= item.cost ? 'bg-teal-500 text-white hover:bg-teal-600' : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    }`}>
+                    Buy
+                  </button>
+                </div>
+              ))}
+            </div>
+            
+            <button onClick={() => setGameState('pet')}
+              className="w-full bg-gray-500 text-white py-3 rounded-xl font-semibold hover:bg-gray-600">
+              ← Back to Pet
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (gameState === 'puzzle') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-indigo-300 via-purple-300 to-pink-300 p-4">
+        <div className="max-w-3xl mx-auto">
+          <div className="bg-white rounded-2xl p-4 mb-4 shadow-lg">
+            <div className="grid grid-cols-3 gap-4 mb-4">
+              <div className="text-center">
+                <div className="text-2xl font-bold text-purple-600">{score}</div>
+                <div className="text-xs text-gray-600">Score</div>
+                <div className="text-xs text-green-600">Goal: {targetScore}</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-blue-600">{moves}</div>
+                <div className="text-xs text-gray-600">Moves</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-orange-600">x{combo > 0 ? Math.min(combo, 5) : 1}</div>
+                <div className="text-xs text-gray-600">Combo</div>
+              </div>
+            </div>
+
+            <div className="mb-4">
+              <div className="w-full bg-gray-200 rounded-full h-3">
+                <div className="bg-gradient-to-r from-green-500 to-blue-500 h-3 rounded-full transition-all"
+                  style={{ width: `${Math.min((score / targetScore) * 100, 100)}%` }}></div>
+              </div>
+            </div>
+
+            <div className="flex gap-2 justify-center mb-4">
+              <button onClick={() => setSelectedPowerup(selectedPowerup === 'hammer' ? null : 'hammer')}
+                disabled={powerups.hammer <= 0}
+                className={`px-4 py-2 rounded-lg font-semibold ${
+                  selectedPowerup === 'hammer' ? 'bg-orange-500 text-white' :
+                  powerups.hammer > 0 ? 'bg-gray-200 hover:bg-gray-300' : 'bg-gray-100 text-gray-400'
+                }`}>
+                🔨 {powerups.hammer}
+              </button>
+              <button onClick={() => setSelectedPowerup(selectedPowerup === 'colorBomb' ? null : 'colorBomb')}
+                disabled={powerups.colorBomb <= 0}
+                className={`px-4 py-2 rounded-lg font-semibold ${
+                  selectedPowerup === 'colorBomb' ? 'bg-purple-500 text-white' :
+                  powerups.colorBomb > 0 ? 'bg-gray-200 hover:bg-gray-300' : 'bg-gray-100 text-gray-400'
+                }`}>
+                💣 {powerups.colorBomb}
+              </button>
+              <button onClick={() => {
+                if (powerups.shuffle > 0) {
+                  usePowerup('shuffle', 0, 0);
+                }
+              }}
+                disabled={powerups.shuffle <= 0}
+                className={`px-4 py-2 rounded-lg font-semibold ${
+                  powerups.shuffle > 0 ? 'bg-gray-200 hover:bg-gray-300' : 'bg-gray-100 text-gray-400'
+                }`}>
+                🔀 {powerups.shuffle}
+              </button>
+            </div>
+            
+            <div className="bg-gray-100 rounded-xl p-2 mb-4">
+              {puzzleBoard.map((row, i) => (
+                <div key={i} className="flex justify-center">
+                  {row.map((cell, j) => (
+                    <button
+                      key={`${i}-${j}`}
+                      onClick={() => handleCellClick(i, j)}
+                      className={`w-11 h-11 m-0.5 text-2xl rounded-lg transition-all ${
+                        selectedCell?.row === i && selectedCell?.col === j
+                          ? 'bg-yellow-300 scale-110 shadow-lg'
+                          : 'bg-white hover:bg-gray-50'
+                      }`}
+                    >
+                      {cell}
+                    </button>
+                  ))}
+                </div>
+              ))}
+            </div>
+            
+            <button onClick={completePuzzle}
+              className="w-full bg-green-500 text-white py-3 rounded-xl font-semibold hover:bg-green-600 flex items-center justify-center gap-2">
+              <Trophy size={20} /> {score >= targetScore ? 'Victory! Collect Rewards' : 'End Puzzle'}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return null;
+};
+
+export default BondPetGame;
