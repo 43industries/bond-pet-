@@ -85,6 +85,7 @@ const BondPetGame = () => {
   const [targetScore, setTargetScore] = useState(1000);
   const [animating, setAnimating] = useState(false);
   const [matchAnimations, setMatchAnimations] = useState(new Set());
+  const [lastSwap, setLastSwap] = useState(null);
 
   const colors = ['🔴', '🔵', '🟢', '🟡', '🟣', '🟠'];
   const SPECIAL_TYPES = {
@@ -451,6 +452,16 @@ const BondPetGame = () => {
       "What's a challenge you've overcome?",
       "What brings you the most joy as a mother?"
     ]
+  };
+
+  const hasInitialMatches = (board) => {
+    for (let i = 0; i < 8; i++) {
+      for (let j = 0; j < 6; j++) {
+        if (board[i][j] === board[i][j + 1] && board[i][j] === board[i][j + 2]) return true;
+        if (i < 6 && board[i][j] === board[i + 1][j] && board[i][j] === board[i + 2][j]) return true;
+      }
+    }
+    return false;
   };
 
   const handleCellClick = (row, col) => {
@@ -1100,16 +1111,6 @@ const BondPetGame = () => {
     setTargetScore(1000 + (gameData.puzzlesCompleted * 200));
   };
 
-  const hasInitialMatches = (board) => {
-    for (let i = 0; i < 8; i++) {
-      for (let j = 0; j < 6; j++) {
-        if (board[i][j] === board[i][j + 1] && board[i][j] === board[i][j + 2]) return true;
-        if (i < 6 && board[i][j] === board[i + 1][j] && board[i][j] === board[i + 2][j]) return true;
-      }
-    }
-    return false;
-  };
-
   // All useEffect hooks must be before any early returns
   // Auto fall effect
   useEffect(() => {
@@ -1176,7 +1177,7 @@ const BondPetGame = () => {
     if (gameState === 'puzzle' && puzzleBoard.length === 0) {
       initializePuzzle();
     }
-  }, [gameState]);
+  }, [gameState, puzzleBoard.length]);
 
   // Pacman keyboard controls
   useEffect(() => {
