@@ -2552,7 +2552,7 @@ const BondPetGame = () => {
       setCurrentWord(word);
       setScrambledWord(word.split('').sort(() => Math.random() - 0.5).join(''));
     }
-  }, [gameState, relationshipMode, scrambledWord]);
+  }, [gameState, relationshipMode]);
 
   if (gameState === 'puzzleGames') {
     return (
