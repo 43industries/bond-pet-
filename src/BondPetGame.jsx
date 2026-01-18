@@ -2421,6 +2421,139 @@ const BondPetGame = () => {
     }
   }, [gameState]);
 
+  // Pacman keyboard controls
+  useEffect(() => {
+    if (gameState !== 'pacman') return;
+    
+    const handlePacmanKey = (key) => {
+      if (key === 'ArrowUp') setPacmanDirection('up');
+      else if (key === 'ArrowDown') setPacmanDirection('down');
+      else if (key === 'ArrowLeft') setPacmanDirection('left');
+      else if (key === 'ArrowRight') setPacmanDirection('right');
+    };
+    
+    const handleKeyPress = (e) => {
+      e.preventDefault();
+      handlePacmanKey(e.key);
+    };
+    
+    window.addEventListener('keydown', handleKeyPress);
+    return () => window.removeEventListener('keydown', handleKeyPress);
+  }, [gameState]);
+
+  // Pacman movement
+  useEffect(() => {
+    if (gameState !== 'pacman') return;
+    
+    const movePacman = () => {
+      setPacmanPos(current => {
+        let newPos = { ...current };
+        if (pacmanDirection === 'up') newPos.y--;
+        else if (pacmanDirection === 'down') newPos.y++;
+        else if (pacmanDirection === 'left') newPos.x--;
+        else if (pacmanDirection === 'right') newPos.x++;
+        
+        // Check bounds
+        if (newPos.x < 0) newPos.x = 30;
+        if (newPos.x > 30) newPos.x = 0;
+        if (newPos.y < 0 || newPos.y > 27) return current;
+        
+        // Score will be updated when rendering checks the maze
+        return newPos;
+      });
+    };
+    
+    const interval = setInterval(movePacman, 200);
+    return () => clearInterval(interval);
+  }, [gameState, pacmanDirection]);
+
+  // Jetpack keyboard controls
+  useEffect(() => {
+    if (gameState !== 'jetpack' || jetpackGameOver) return;
+    
+    const handleJetpackKey = (pressed) => {
+      if (pressed) {
+        setJetpackY(prev => Math.max(50, prev - 5));
+      } else {
+        setJetpackY(prev => Math.min(350, prev + 3));
+      }
+    };
+    
+    const handleKeyPress = (e) => {
+      if (e.key === ' ' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        handleJetpackKey(true);
+      }
+    };
+    
+    const handleKeyUp = (e) => {
+      if (e.key === ' ' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        handleJetpackKey(false);
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyPress);
+    window.addEventListener('keyup', handleKeyUp);
+    return () => {
+      window.removeEventListener('keydown', handleKeyPress);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
+  }, [gameState, jetpackGameOver]);
+
+  // Jetpack game loop
+  useEffect(() => {
+    if (gameState !== 'jetpack' || jetpackGameOver) return;
+    
+    const gameLoop = setInterval(() => {
+      setJetpackScore(prev => prev + 1);
+      setJetpackObstacles(prev => {
+        const newObstacles = prev.map(obs => ({ ...obs, x: obs.x - 5 }));
+        const filtered = newObstacles.filter(obs => obs.x > -50);
+        
+        // Add new obstacles
+        if (Math.random() < 0.1) {
+          filtered.push({
+            x: 600,
+            yTop: Math.random() * 150 + 50,
+            yBottom: Math.random() * 150 + 250,
+            gap: 100
+          });
+        }
+        
+        // Check collisions
+        filtered.forEach(obs => {
+          if (obs.x < 100 && obs.x > 50) {
+            if (jetpackY < obs.yTop || jetpackY > obs.yBottom) {
+              setJetpackGameOver(true);
+            }
+          }
+        });
+        
+        return filtered;
+      });
+    }, 50);
+    
+    return () => clearInterval(gameLoop);
+  }, [gameState, jetpackGameOver, jetpackY]);
+
+  // Word Scramble initialization
+  useEffect(() => {
+    if (gameState !== 'wordScramble') return;
+    
+    const words = relationshipMode === 'couples'
+      ? ['LOVE', 'KISS', 'HEART', 'ROMANCE']
+      : relationshipMode === 'family'
+      ? ['FAMILY', 'HOME', 'LOVE', 'CARE']
+      : ['FRIEND', 'FUN', 'LAUGH', 'JOY'];
+    
+    if (!scrambledWord && words.length > 0) {
+      const word = words[0];
+      setCurrentWord(word);
+      setScrambledWord(word.split('').sort(() => Math.random() - 0.5).join(''));
+    }
+  }, [gameState, relationshipMode, scrambledWord]);
+
   if (gameState === 'puzzleGames') {
     return (
       <div className="min-h-screen bg-gradient-to-br from-pink-200 via-purple-200 to-indigo-200 p-4">
@@ -3108,25 +3241,6 @@ const BondPetGame = () => {
       }
     }
 
-    const handlePacmanKey = (key) => {
-      if (key === 'ArrowUp') setPacmanDirection('up');
-      else if (key === 'ArrowDown') setPacmanDirection('down');
-      else if (key === 'ArrowLeft') setPacmanDirection('left');
-      else if (key === 'ArrowRight') setPacmanDirection('right');
-    };
-
-    useEffect(() => {
-      if (gameState !== 'pacman') return;
-      
-      const handleKeyPress = (e) => {
-        e.preventDefault();
-        handlePacmanKey(e.key);
-      };
-      
-      window.addEventListener('keydown', handleKeyPress);
-      return () => window.removeEventListener('keydown', handleKeyPress);
-    }, [gameState]);
-
     const movePacman = () => {
       setPacmanPos(current => {
         let newPos = { ...current };
@@ -3148,12 +3262,6 @@ const BondPetGame = () => {
         return newPos;
       });
     };
-
-    useEffect(() => {
-      if (gameState !== 'pacman') return;
-      const interval = setInterval(movePacman, 200);
-      return () => clearInterval(interval);
-    }, [gameState, pacmanDirection]);
 
     const completePacman = () => {
       const coinsEarned = Math.floor(pacmanScore / 10);
@@ -3250,73 +3358,6 @@ const BondPetGame = () => {
 
   // Jetpack Joyride Game
   if (gameState === 'jetpack') {
-    const handleJetpackKey = (pressed) => {
-      if (pressed) {
-        setJetpackY(prev => Math.max(50, prev - 5));
-      } else {
-        setJetpackY(prev => Math.min(350, prev + 3));
-      }
-    };
-
-    useEffect(() => {
-      if (gameState !== 'jetpack' || jetpackGameOver) return;
-      
-      const handleKeyPress = (e) => {
-        if (e.key === ' ' || e.key === 'ArrowUp') {
-          e.preventDefault();
-          handleJetpackKey(true);
-        }
-      };
-      
-      const handleKeyUp = (e) => {
-        if (e.key === ' ' || e.key === 'ArrowUp') {
-          e.preventDefault();
-          handleJetpackKey(false);
-        }
-      };
-      
-      window.addEventListener('keydown', handleKeyPress);
-      window.addEventListener('keyup', handleKeyUp);
-      return () => {
-        window.removeEventListener('keydown', handleKeyPress);
-        window.removeEventListener('keyup', handleKeyUp);
-      };
-    }, [gameState, jetpackGameOver]);
-
-    useEffect(() => {
-      if (gameState !== 'jetpack' || jetpackGameOver) return;
-      
-      const gameLoop = setInterval(() => {
-        setJetpackScore(prev => prev + 1);
-        setJetpackObstacles(prev => {
-          const newObstacles = prev.map(obs => ({ ...obs, x: obs.x - 5 }));
-          const filtered = newObstacles.filter(obs => obs.x > -50);
-          
-          // Add new obstacles
-          if (Math.random() < 0.1) {
-            filtered.push({
-              x: 600,
-              yTop: Math.random() * 150 + 50,
-              yBottom: Math.random() * 150 + 250,
-              gap: 100
-            });
-          }
-          
-          // Check collisions
-          filtered.forEach(obs => {
-            if (obs.x < 100 && obs.x > 50) {
-              if (jetpackY < obs.yTop || jetpackY > obs.yBottom) {
-                setJetpackGameOver(true);
-              }
-            }
-          });
-          
-          return filtered;
-        });
-      }, 50);
-      
-      return () => clearInterval(gameLoop);
-    }, [gameState, jetpackGameOver, jetpackY]);
 
     const completeJetpack = () => {
       const coinsEarned = Math.floor(jetpackScore / 5);
@@ -3770,14 +3811,6 @@ const BondPetGame = () => {
       : relationshipMode === 'family'
       ? ['FAMILY', 'HOME', 'LOVE', 'CARE']
       : ['FRIEND', 'FUN', 'LAUGH', 'JOY'];
-
-    useEffect(() => {
-      if (gameState === 'wordScramble' && !scrambledWord && words.length > 0) {
-        const word = words[0];
-        setCurrentWord(word);
-        setScrambledWord(word.split('').sort(() => Math.random() - 0.5).join(''));
-      }
-    }, [gameState]);
 
     const checkAnswer = () => {
       if (scrambleInput.toUpperCase() === currentWord && currentWord) {
