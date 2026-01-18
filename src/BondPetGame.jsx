@@ -453,35 +453,6 @@ const BondPetGame = () => {
     ]
   };
 
-  const hasInitialMatches = (board) => {
-    for (let i = 0; i < 8; i++) {
-      for (let j = 0; j < 6; j++) {
-        if (board[i][j] === board[i][j + 1] && board[i][j] === board[i][j + 2]) return true;
-        if (i < 6 && board[i][j] === board[i + 1][j] && board[i][j] === board[i + 2][j]) return true;
-      }
-    }
-    return false;
-  };
-
-  const initializePuzzle = () => {
-    let board;
-    let attempts = 0;
-    do {
-      board = Array(8).fill(0).map(() => 
-      Array(8).fill(0).map(() => colors[Math.floor(Math.random() * colors.length)])
-    );
-      attempts++;
-    } while (hasInitialMatches(board) && attempts < 50);
-    
-    setPuzzleBoard(board);
-    setMoves(25);
-    setScore(0);
-    setCombo(0);
-    setSpecialPieces({});
-    setMatchAnimations(new Set());
-    setTargetScore(1000 + (gameData.puzzlesCompleted * 200));
-  };
-
   const handleCellClick = (row, col) => {
     if (moves <= 0 || animating) return;
     
@@ -1014,6 +985,331 @@ const BondPetGame = () => {
     return msgs[relationshipMode]?.[Math.floor(Math.random() * 4)] || msgs.friends[0];
   };
 
+  // Tetris functions (needed by hooks below)
+  const createNewTetrisPiece = () => {
+    const shapeIndex = Math.floor(Math.random() * TETRIS_SHAPES.length);
+    return {
+      shape: TETRIS_SHAPES[shapeIndex],
+      x: Math.floor(10 / 2) - 1,
+      y: 0,
+      color: TETRIS_COLORS[shapeIndex]
+    };
+  };
+
+  const rotateTetrisPiece = (piece) => {
+    const rows = piece.shape.length;
+    const cols = piece.shape[0].length;
+    const rotated = Array(cols).fill(null).map(() => Array(rows).fill(0));
+    for (let i = 0; i < rows; i++) {
+      for (let j = 0; j < cols; j++) {
+        rotated[j][rows - 1 - i] = piece.shape[i][j];
+      }
+    }
+    return { ...piece, shape: rotated };
+  };
+
+  const isValidPosition = (board, piece, dx = 0, dy = 0) => {
+    for (let y = 0; y < piece.shape.length; y++) {
+      for (let x = 0; x < piece.shape[y].length; x++) {
+        if (piece.shape[y][x]) {
+          const newX = piece.x + x + dx;
+          const newY = piece.y + y + dy;
+          if (newX < 0 || newX >= 10 || newY >= 20) return false;
+          if (newY >= 0 && board[newY][newX]) return false;
+        }
+      }
+    }
+    return true;
+  };
+
+  const placeTetrisPiece = (board, piece) => {
+    const newBoard = board.map(row => [...row]);
+    for (let y = 0; y < piece.shape.length; y++) {
+      for (let x = 0; x < piece.shape[y].length; x++) {
+        if (piece.shape[y][x]) {
+          const boardY = piece.y + y;
+          const boardX = piece.x + x;
+          if (boardY >= 0) {
+            newBoard[boardY][boardX] = piece.color;
+          }
+        }
+      }
+    }
+    return newBoard;
+  };
+
+  const clearTetrisLines = (board) => {
+    let newBoard = board.filter(row => !row.every(cell => cell !== 0));
+    const linesCleared = board.length - newBoard.length;
+    while (newBoard.length < 20) {
+      newBoard.unshift(Array(10).fill(0));
+    }
+    return { board: newBoard, linesCleared };
+  };
+
+  const moveTetrisPiece = (direction) => {
+    if (!tetrisPiece || tetrisGameOver || tetrisPaused) return;
+    
+    let newPiece = { ...tetrisPiece };
+    if (direction === 'left') newPiece.x--;
+    else if (direction === 'right') newPiece.x++;
+    else if (direction === 'down') newPiece.y++;
+    else if (direction === 'rotate') newPiece = rotateTetrisPiece(tetrisPiece);
+    
+    if (isValidPosition(tetrisBoard, newPiece)) {
+      setTetrisPiece(newPiece);
+    } else if (direction === 'down') {
+      // Place piece and create new one
+      const newBoard = placeTetrisPiece(tetrisBoard, tetrisPiece);
+      const { board: clearedBoard, linesCleared } = clearTetrisLines(newBoard);
+      setTetrisBoard(clearedBoard);
+      
+      if (linesCleared > 0) {
+        const points = [0, 100, 300, 500, 800][linesCleared] * (tetrisLevel + 1);
+        setTetrisScore(prev => prev + points);
+        setTetrisLines(prev => prev + linesCleared);
+        setTetrisLevel(prev => Math.floor((prev + linesCleared) / 10) + 1);
+        setTetrisFallTime(prev => Math.max(100, prev - 50));
+      }
+      
+      const nextPiece = createNewTetrisPiece();
+      if (!isValidPosition(clearedBoard, nextPiece)) {
+        setTetrisGameOver(true);
+      } else {
+        setTetrisPiece(nextPiece);
+      }
+    }
+  };
+
+  const initializePuzzle = () => {
+    let board;
+    let attempts = 0;
+    do {
+      board = Array(8).fill(0).map(() => 
+      Array(8).fill(0).map(() => colors[Math.floor(Math.random() * colors.length)])
+    );
+      attempts++;
+    } while (hasInitialMatches(board) && attempts < 50);
+    
+    setPuzzleBoard(board);
+    setMoves(25);
+    setScore(0);
+    setCombo(0);
+    setSpecialPieces({});
+    setMatchAnimations(new Set());
+    setTargetScore(1000 + (gameData.puzzlesCompleted * 200));
+  };
+
+  const hasInitialMatches = (board) => {
+    for (let i = 0; i < 8; i++) {
+      for (let j = 0; j < 6; j++) {
+        if (board[i][j] === board[i][j + 1] && board[i][j] === board[i][j + 2]) return true;
+        if (i < 6 && board[i][j] === board[i + 1][j] && board[i][j] === board[i + 2][j]) return true;
+      }
+    }
+    return false;
+  };
+
+  // All useEffect hooks must be before any early returns
+  // Auto fall effect
+  useEffect(() => {
+    if (gameState !== 'tetris') return;
+    
+    const interval = setInterval(() => {
+      const { board, piece, gameOver, paused } = tetrisRef.current;
+      if (!piece || gameOver || paused) return;
+      
+      const newPiece = { ...piece, y: piece.y + 1 };
+      
+      if (isValidPosition(board, newPiece)) {
+        setTetrisPiece(newPiece);
+      } else {
+        // Place piece
+        const placedBoard = placeTetrisPiece(board, piece);
+        const { board: clearedBoard, linesCleared } = clearTetrisLines(placedBoard);
+        setTetrisBoard(clearedBoard);
+        
+        if (linesCleared > 0) {
+          setTetrisScore(prev => {
+            const newScore = prev + [0, 100, 300, 500, 800][linesCleared] * (tetrisLevel + 1);
+            return newScore;
+          });
+          setTetrisLines(prev => prev + linesCleared);
+          setTetrisLevel(prev => Math.floor((prev + linesCleared) / 10) + 1);
+          setTetrisFallTime(prev => Math.max(100, prev - 50));
+        }
+        
+        const nextPiece = createNewTetrisPiece();
+        if (!isValidPosition(clearedBoard, nextPiece)) {
+          setTetrisGameOver(true);
+        } else {
+          setTetrisPiece(nextPiece);
+        }
+      }
+    }, tetrisFallTime);
+    
+    return () => clearInterval(interval);
+  }, [gameState, tetrisFallTime, tetrisLevel]);
+
+  // Keyboard controls
+  useEffect(() => {
+    if (gameState !== 'tetris') return;
+    
+    const handleKeyPress = (e) => {
+      if (tetrisGameOver || tetrisPaused) {
+        if (e.key === 'p' || e.key === 'P') setTetrisPaused(!tetrisPaused);
+        return;
+      }
+      e.preventDefault();
+      if (e.key === 'ArrowLeft') moveTetrisPiece('left');
+      else if (e.key === 'ArrowRight') moveTetrisPiece('right');
+      else if (e.key === 'ArrowDown') moveTetrisPiece('down');
+      else if (e.key === 'ArrowUp' || e.key === ' ') moveTetrisPiece('rotate');
+      else if (e.key === 'p' || e.key === 'P') setTetrisPaused(!tetrisPaused);
+    };
+    
+    window.addEventListener('keydown', handleKeyPress);
+    return () => window.removeEventListener('keydown', handleKeyPress);
+  }, [gameState, tetrisPiece, tetrisGameOver, tetrisPaused]);
+
+  useEffect(() => {
+    if (gameState === 'puzzle' && puzzleBoard.length === 0) {
+      initializePuzzle();
+    }
+  }, [gameState]);
+
+  // Pacman keyboard controls
+  useEffect(() => {
+    if (gameState !== 'pacman') return;
+    
+    const handlePacmanKey = (key) => {
+      if (key === 'ArrowUp') setPacmanDirection('up');
+      else if (key === 'ArrowDown') setPacmanDirection('down');
+      else if (key === 'ArrowLeft') setPacmanDirection('left');
+      else if (key === 'ArrowRight') setPacmanDirection('right');
+    };
+    
+    const handleKeyPress = (e) => {
+      e.preventDefault();
+      handlePacmanKey(e.key);
+    };
+    
+    window.addEventListener('keydown', handleKeyPress);
+    return () => window.removeEventListener('keydown', handleKeyPress);
+  }, [gameState]);
+
+  // Pacman movement
+  useEffect(() => {
+    if (gameState !== 'pacman') return;
+    
+    const movePacman = () => {
+      setPacmanPos(current => {
+        let newPos = { ...current };
+        if (pacmanDirection === 'up') newPos.y--;
+        else if (pacmanDirection === 'down') newPos.y++;
+        else if (pacmanDirection === 'left') newPos.x--;
+        else if (pacmanDirection === 'right') newPos.x++;
+        
+        // Check bounds
+        if (newPos.x < 0) newPos.x = 30;
+        if (newPos.x > 30) newPos.x = 0;
+        if (newPos.y < 0 || newPos.y > 27) return current;
+        
+        // Score will be updated when rendering checks the maze
+        return newPos;
+      });
+    };
+    
+    const interval = setInterval(movePacman, 200);
+    return () => clearInterval(interval);
+  }, [gameState, pacmanDirection]);
+
+  // Jetpack keyboard controls
+  useEffect(() => {
+    if (gameState !== 'jetpack' || jetpackGameOver) return;
+    
+    const handleJetpackKey = (pressed) => {
+      if (pressed) {
+        setJetpackY(prev => Math.max(50, prev - 5));
+      } else {
+        setJetpackY(prev => Math.min(350, prev + 3));
+      }
+    };
+    
+    const handleKeyPress = (e) => {
+      if (e.key === ' ' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        handleJetpackKey(true);
+      }
+    };
+    
+    const handleKeyUp = (e) => {
+      if (e.key === ' ' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        handleJetpackKey(false);
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyPress);
+    window.addEventListener('keyup', handleKeyUp);
+    return () => {
+      window.removeEventListener('keydown', handleKeyPress);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
+  }, [gameState, jetpackGameOver]);
+
+  // Jetpack game loop
+  useEffect(() => {
+    if (gameState !== 'jetpack' || jetpackGameOver) return;
+    
+    const gameLoop = setInterval(() => {
+      setJetpackScore(prev => prev + 1);
+      setJetpackObstacles(prev => {
+        const newObstacles = prev.map(obs => ({ ...obs, x: obs.x - 5 }));
+        const filtered = newObstacles.filter(obs => obs.x > -50);
+        
+        // Add new obstacles
+        if (Math.random() < 0.1) {
+          filtered.push({
+            x: 600,
+            yTop: Math.random() * 150 + 50,
+            yBottom: Math.random() * 150 + 250,
+            gap: 100
+          });
+        }
+        
+        // Check collisions
+        filtered.forEach(obs => {
+          if (obs.x < 100 && obs.x > 50) {
+            if (jetpackY < obs.yTop || jetpackY > obs.yBottom) {
+              setJetpackGameOver(true);
+            }
+          }
+        });
+        
+        return filtered;
+      });
+    }, 50);
+    
+    return () => clearInterval(gameLoop);
+  }, [gameState, jetpackGameOver, jetpackY]);
+
+  // Word Scramble initialization
+  useEffect(() => {
+    if (gameState !== 'wordScramble') return;
+    
+    const words = relationshipMode === 'couples'
+      ? ['LOVE', 'KISS', 'HEART', 'ROMANCE']
+      : relationshipMode === 'family'
+      ? ['FAMILY', 'HOME', 'LOVE', 'CARE']
+      : ['FRIEND', 'FUN', 'LAUGH', 'JOY'];
+    
+    if (!scrambledWord && words.length > 0) {
+      const word = words[0];
+      setCurrentWord(word);
+      setScrambledWord(word.split('').sort(() => Math.random() - 0.5).join(''));
+    }
+  }, [gameState, relationshipMode]);
 
   if (gameState === 'petSelection') {
     return (
@@ -2246,17 +2542,6 @@ const BondPetGame = () => {
     );
   }
 
-  // Tetris functions
-  const createNewTetrisPiece = () => {
-    const shapeIndex = Math.floor(Math.random() * TETRIS_SHAPES.length);
-    return {
-      shape: TETRIS_SHAPES[shapeIndex],
-      x: Math.floor(10 / 2) - 1,
-      y: 0,
-      color: TETRIS_COLORS[shapeIndex]
-    };
-  };
-
   const initializeTetris = () => {
     setTetrisBoard(Array(20).fill(null).map(() => Array(10).fill(0)));
     setTetrisPiece(createNewTetrisPiece());
@@ -2267,291 +2552,6 @@ const BondPetGame = () => {
     setTetrisPaused(false);
     setTetrisFallTime(1000);
   };
-
-  const rotateTetrisPiece = (piece) => {
-    const rows = piece.shape.length;
-    const cols = piece.shape[0].length;
-    const rotated = Array(cols).fill(null).map(() => Array(rows).fill(0));
-    for (let i = 0; i < rows; i++) {
-      for (let j = 0; j < cols; j++) {
-        rotated[j][rows - 1 - i] = piece.shape[i][j];
-      }
-    }
-    return { ...piece, shape: rotated };
-  };
-
-  const isValidPosition = (board, piece, dx = 0, dy = 0) => {
-    for (let y = 0; y < piece.shape.length; y++) {
-      for (let x = 0; x < piece.shape[y].length; x++) {
-        if (piece.shape[y][x]) {
-          const newX = piece.x + x + dx;
-          const newY = piece.y + y + dy;
-          if (newX < 0 || newX >= 10 || newY >= 20) return false;
-          if (newY >= 0 && board[newY][newX]) return false;
-        }
-      }
-    }
-    return true;
-  };
-
-  const placeTetrisPiece = (board, piece) => {
-    const newBoard = board.map(row => [...row]);
-    for (let y = 0; y < piece.shape.length; y++) {
-      for (let x = 0; x < piece.shape[y].length; x++) {
-        if (piece.shape[y][x]) {
-          const boardY = piece.y + y;
-          const boardX = piece.x + x;
-          if (boardY >= 0) {
-            newBoard[boardY][boardX] = piece.color;
-          }
-        }
-      }
-    }
-    return newBoard;
-  };
-
-  const clearTetrisLines = (board) => {
-    let newBoard = board.filter(row => !row.every(cell => cell !== 0));
-    const linesCleared = board.length - newBoard.length;
-    while (newBoard.length < 20) {
-      newBoard.unshift(Array(10).fill(0));
-    }
-    return { board: newBoard, linesCleared };
-  };
-
-  const moveTetrisPiece = (direction) => {
-    if (!tetrisPiece || tetrisGameOver || tetrisPaused) return;
-    
-    let newPiece = { ...tetrisPiece };
-    if (direction === 'left') newPiece.x--;
-    else if (direction === 'right') newPiece.x++;
-    else if (direction === 'down') newPiece.y++;
-    else if (direction === 'rotate') newPiece = rotateTetrisPiece(tetrisPiece);
-    
-    if (isValidPosition(tetrisBoard, newPiece)) {
-      setTetrisPiece(newPiece);
-    } else if (direction === 'down') {
-      // Place piece and create new one
-      const newBoard = placeTetrisPiece(tetrisBoard, tetrisPiece);
-      const { board: clearedBoard, linesCleared } = clearTetrisLines(newBoard);
-      setTetrisBoard(clearedBoard);
-      
-      if (linesCleared > 0) {
-        const points = [0, 100, 300, 500, 800][linesCleared] * (tetrisLevel + 1);
-        setTetrisScore(prev => prev + points);
-        setTetrisLines(prev => prev + linesCleared);
-        setTetrisLevel(prev => Math.floor((prev + linesCleared) / 10) + 1);
-        setTetrisFallTime(prev => Math.max(100, prev - 50));
-      }
-      
-      const nextPiece = createNewTetrisPiece();
-      if (!isValidPosition(clearedBoard, nextPiece)) {
-        setTetrisGameOver(true);
-      } else {
-        setTetrisPiece(nextPiece);
-      }
-    }
-  };
-
-  // Auto fall effect
-  useEffect(() => {
-    if (gameState !== 'tetris') return;
-    
-    const interval = setInterval(() => {
-      const { board, piece, gameOver, paused } = tetrisRef.current;
-      if (!piece || gameOver || paused) return;
-      
-      const newPiece = { ...piece, y: piece.y + 1 };
-      
-      if (isValidPosition(board, newPiece)) {
-        setTetrisPiece(newPiece);
-      } else {
-        // Place piece
-        const placedBoard = placeTetrisPiece(board, piece);
-        const { board: clearedBoard, linesCleared } = clearTetrisLines(placedBoard);
-        setTetrisBoard(clearedBoard);
-        
-        if (linesCleared > 0) {
-          setTetrisScore(prev => {
-            const newScore = prev + [0, 100, 300, 500, 800][linesCleared] * (tetrisLevel + 1);
-            return newScore;
-          });
-          setTetrisLines(prev => prev + linesCleared);
-          setTetrisLevel(prev => Math.floor((prev + linesCleared) / 10) + 1);
-          setTetrisFallTime(prev => Math.max(100, prev - 50));
-        }
-        
-        const nextPiece = createNewTetrisPiece();
-        if (!isValidPosition(clearedBoard, nextPiece)) {
-          setTetrisGameOver(true);
-        } else {
-          setTetrisPiece(nextPiece);
-        }
-      }
-    }, tetrisFallTime);
-    
-    return () => clearInterval(interval);
-  }, [gameState, tetrisFallTime, tetrisLevel]);
-
-  // Keyboard controls
-  useEffect(() => {
-    if (gameState !== 'tetris') return;
-    
-    const handleKeyPress = (e) => {
-      if (tetrisGameOver || tetrisPaused) {
-        if (e.key === 'p' || e.key === 'P') setTetrisPaused(!tetrisPaused);
-        return;
-      }
-      e.preventDefault();
-      if (e.key === 'ArrowLeft') moveTetrisPiece('left');
-      else if (e.key === 'ArrowRight') moveTetrisPiece('right');
-      else if (e.key === 'ArrowDown') moveTetrisPiece('down');
-      else if (e.key === 'ArrowUp' || e.key === ' ') moveTetrisPiece('rotate');
-      else if (e.key === 'p' || e.key === 'P') setTetrisPaused(!tetrisPaused);
-    };
-    
-    window.addEventListener('keydown', handleKeyPress);
-    return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [gameState, tetrisPiece, tetrisGameOver, tetrisPaused]);
-
-  useEffect(() => {
-    if (gameState === 'puzzle' && puzzleBoard.length === 0) {
-      initializePuzzle();
-    }
-  }, [gameState]);
-
-  // Pacman keyboard controls
-  useEffect(() => {
-    if (gameState !== 'pacman') return;
-    
-    const handlePacmanKey = (key) => {
-      if (key === 'ArrowUp') setPacmanDirection('up');
-      else if (key === 'ArrowDown') setPacmanDirection('down');
-      else if (key === 'ArrowLeft') setPacmanDirection('left');
-      else if (key === 'ArrowRight') setPacmanDirection('right');
-    };
-    
-    const handleKeyPress = (e) => {
-      e.preventDefault();
-      handlePacmanKey(e.key);
-    };
-    
-    window.addEventListener('keydown', handleKeyPress);
-    return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [gameState]);
-
-  // Pacman movement
-  useEffect(() => {
-    if (gameState !== 'pacman') return;
-    
-    const movePacman = () => {
-      setPacmanPos(current => {
-        let newPos = { ...current };
-        if (pacmanDirection === 'up') newPos.y--;
-        else if (pacmanDirection === 'down') newPos.y++;
-        else if (pacmanDirection === 'left') newPos.x--;
-        else if (pacmanDirection === 'right') newPos.x++;
-        
-        // Check bounds
-        if (newPos.x < 0) newPos.x = 30;
-        if (newPos.x > 30) newPos.x = 0;
-        if (newPos.y < 0 || newPos.y > 27) return current;
-        
-        // Score will be updated when rendering checks the maze
-        return newPos;
-      });
-    };
-    
-    const interval = setInterval(movePacman, 200);
-    return () => clearInterval(interval);
-  }, [gameState, pacmanDirection]);
-
-  // Jetpack keyboard controls
-  useEffect(() => {
-    if (gameState !== 'jetpack' || jetpackGameOver) return;
-    
-    const handleJetpackKey = (pressed) => {
-      if (pressed) {
-        setJetpackY(prev => Math.max(50, prev - 5));
-      } else {
-        setJetpackY(prev => Math.min(350, prev + 3));
-      }
-    };
-    
-    const handleKeyPress = (e) => {
-      if (e.key === ' ' || e.key === 'ArrowUp') {
-        e.preventDefault();
-        handleJetpackKey(true);
-      }
-    };
-    
-    const handleKeyUp = (e) => {
-      if (e.key === ' ' || e.key === 'ArrowUp') {
-        e.preventDefault();
-        handleJetpackKey(false);
-      }
-    };
-    
-    window.addEventListener('keydown', handleKeyPress);
-    window.addEventListener('keyup', handleKeyUp);
-    return () => {
-      window.removeEventListener('keydown', handleKeyPress);
-      window.removeEventListener('keyup', handleKeyUp);
-    };
-  }, [gameState, jetpackGameOver]);
-
-  // Jetpack game loop
-  useEffect(() => {
-    if (gameState !== 'jetpack' || jetpackGameOver) return;
-    
-    const gameLoop = setInterval(() => {
-      setJetpackScore(prev => prev + 1);
-      setJetpackObstacles(prev => {
-        const newObstacles = prev.map(obs => ({ ...obs, x: obs.x - 5 }));
-        const filtered = newObstacles.filter(obs => obs.x > -50);
-        
-        // Add new obstacles
-        if (Math.random() < 0.1) {
-          filtered.push({
-            x: 600,
-            yTop: Math.random() * 150 + 50,
-            yBottom: Math.random() * 150 + 250,
-            gap: 100
-          });
-        }
-        
-        // Check collisions
-        filtered.forEach(obs => {
-          if (obs.x < 100 && obs.x > 50) {
-            if (jetpackY < obs.yTop || jetpackY > obs.yBottom) {
-              setJetpackGameOver(true);
-            }
-          }
-        });
-        
-        return filtered;
-      });
-    }, 50);
-    
-    return () => clearInterval(gameLoop);
-  }, [gameState, jetpackGameOver, jetpackY]);
-
-  // Word Scramble initialization
-  useEffect(() => {
-    if (gameState !== 'wordScramble') return;
-    
-    const words = relationshipMode === 'couples'
-      ? ['LOVE', 'KISS', 'HEART', 'ROMANCE']
-      : relationshipMode === 'family'
-      ? ['FAMILY', 'HOME', 'LOVE', 'CARE']
-      : ['FRIEND', 'FUN', 'LAUGH', 'JOY'];
-    
-    if (!scrambledWord && words.length > 0) {
-      const word = words[0];
-      setCurrentWord(word);
-      setScrambledWord(word.split('').sort(() => Math.random() - 0.5).join(''));
-    }
-  }, [gameState, relationshipMode]);
 
   if (gameState === 'puzzleGames') {
     return (
