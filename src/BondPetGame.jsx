@@ -934,41 +934,40 @@ const BondPetGame = () => {
     }
   };
 
-  const checkPetUnlocks = () => {
-    const newlyUnlocked = [];
-    petTypes.forEach(pet => {
-      if (gameData.unlockedPets.includes(pet.id)) return;
-      
-      let shouldUnlock = false;
-      if (pet.unlockCondition.toLowerCase().includes('coins')) {
-        const coinsNeeded = parseInt(pet.unlockCondition.match(/\d+/)?.[0] || '0');
-        if (gameData.coins >= coinsNeeded) shouldUnlock = true;
-      } else if (pet.unlockCondition.toLowerCase().includes('puzzles') || pet.unlockCondition.toLowerCase().includes('complete')) {
-        const puzzlesNeeded = parseInt(pet.unlockCondition.match(/\d+/)?.[0] || '0');
-        if (gameData.puzzlesCompleted >= puzzlesNeeded) shouldUnlock = true;
-      } else if (pet.unlockCondition.toLowerCase().includes('shared progress') || pet.unlockCondition.toLowerCase().includes('reach')) {
-        const progressNeeded = parseInt(pet.unlockCondition.match(/\d+/)?.[0] || '0');
-        if (gameData.sharedProgress >= progressNeeded) shouldUnlock = true;
-      } else if (pet.unlockCondition.toLowerCase().includes('games') || pet.unlockCondition.toLowerCase().includes('win')) {
-        const gamesNeeded = parseInt(pet.unlockCondition.match(/\d+/)?.[0] || '0');
-        if (gameData.gamesWon >= gamesNeeded) shouldUnlock = true;
-      }
-      
-      if (shouldUnlock && !gameData.unlockedPets.includes(pet.id)) {
-        newlyUnlocked.push(pet.id);
-      }
-    });
-    
-    if (newlyUnlocked.length > 0) {
-      setGameData(prev => ({
-        ...prev,
-        unlockedPets: [...prev.unlockedPets, ...newlyUnlocked]
-      }));
-    }
-  };
-
   useEffect(() => {
-    checkPetUnlocks();
+    setGameData(prev => {
+      const newlyUnlocked = [];
+      petTypes.forEach(pet => {
+        if (prev.unlockedPets.includes(pet.id)) return;
+        
+        let shouldUnlock = false;
+        if (pet.unlockCondition.toLowerCase().includes('coins')) {
+          const coinsNeeded = parseInt(pet.unlockCondition.match(/\d+/)?.[0] || '0');
+          if (prev.coins >= coinsNeeded) shouldUnlock = true;
+        } else if (pet.unlockCondition.toLowerCase().includes('puzzles') || pet.unlockCondition.toLowerCase().includes('complete')) {
+          const puzzlesNeeded = parseInt(pet.unlockCondition.match(/\d+/)?.[0] || '0');
+          if (prev.puzzlesCompleted >= puzzlesNeeded) shouldUnlock = true;
+        } else if (pet.unlockCondition.toLowerCase().includes('shared progress') || pet.unlockCondition.toLowerCase().includes('reach')) {
+          const progressNeeded = parseInt(pet.unlockCondition.match(/\d+/)?.[0] || '0');
+          if (prev.sharedProgress >= progressNeeded) shouldUnlock = true;
+        } else if (pet.unlockCondition.toLowerCase().includes('games') || pet.unlockCondition.toLowerCase().includes('win')) {
+          const gamesNeeded = parseInt(pet.unlockCondition.match(/\d+/)?.[0] || '0');
+          if (prev.gamesWon >= gamesNeeded) shouldUnlock = true;
+        }
+        
+        if (shouldUnlock && !prev.unlockedPets.includes(pet.id)) {
+          newlyUnlocked.push(pet.id);
+        }
+      });
+      
+      if (newlyUnlocked.length > 0) {
+        return {
+          ...prev,
+          unlockedPets: [...prev.unlockedPets, ...newlyUnlocked]
+        };
+      }
+      return prev;
+    });
   }, [gameData.coins, gameData.puzzlesCompleted, gameData.sharedProgress, gameData.gamesWon]);
 
   const getPetMood = () => {
