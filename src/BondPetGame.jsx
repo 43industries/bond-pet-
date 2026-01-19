@@ -11,11 +11,13 @@ const BondPetGame = () => {
     pet: { name: 'Buddy', type: 'dog', happiness: 50, level: 1 },
     inventory: [],
     coins: 0,
-    puzzlesCompleted: 0,
-    sharedProgress: 0,
+    conversationsCompleted: 0,
+    relationshipProgress: 0, // 0-100, tracks relationship strength
+    bondLevel: 1, // Levels up as relationship progresses
     unlockedPets: ['dog'],
     gamesWon: 0,
-    bibleVerses: []
+    bibleVerses: [],
+    conversationHistory: [] // Track conversation topics/questions
   });
 
   const petTypes = [
@@ -1419,27 +1421,31 @@ const BondPetGame = () => {
             />
             
             <div className="space-y-3">
-              <p className="text-sm font-semibold text-gray-700">Choose your relationship type:</p>
-              {[
-                { mode: 'friends', label: '👫 Best Friends Mode', color: 'from-yellow-400 to-orange-400' },
-                { mode: 'couples', label: '💕 Couples Mode', color: 'from-pink-400 to-red-400' },
-                { mode: 'family', label: '👨‍👩‍👧 Family Mode', color: 'from-green-400 to-blue-400' },
-                { mode: 'mother-daughter', label: '👩‍👧 Mother-Daughter Bond', color: 'from-pink-300 to-purple-400' },
-                { mode: 'mother-father-son', label: '👨‍👩‍👦 Mother-Father-Son Bond', color: 'from-blue-300 to-indigo-400' },
-                { mode: 'mother', label: '👩 Mother Mode', color: 'from-rose-300 to-pink-400' }
-              ].map((item, idx) => (
+              <p className="text-sm font-semibold text-gray-700 text-center">Build stronger bonds through meaningful conversations</p>
+              <div className="space-y-3">
                 <button
-                  key={item.mode}
                   onClick={() => {
-                    setRelationshipMode(item.mode);
+                    setRelationshipMode('couples');
                     setCurrentPlayer(playerName || 'Player 1');
-                    setGameState('petSelection');
+                    setGameState('pet');
                   }}
-                  className={`w-full text-white py-3 rounded-xl font-semibold hover:shadow-lg transition-all bg-gradient-to-r ${item.color}`}
+                  className="w-full text-white py-4 rounded-xl font-semibold hover:shadow-lg transition-all bg-gradient-to-r from-pink-400 to-red-400 text-lg"
                 >
-                  {item.label}
+                  💕 Couples Mode
+                  <div className="text-sm font-normal mt-1">Deepen your romantic connection</div>
                 </button>
-              ))}
+                <button
+                  onClick={() => {
+                    setRelationshipMode('friends');
+                    setCurrentPlayer(playerName || 'Player 1');
+                    setGameState('pet');
+                  }}
+                  className="w-full text-white py-4 rounded-xl font-semibold hover:shadow-lg transition-all bg-gradient-to-r from-yellow-400 to-orange-400 text-lg"
+                >
+                  👫 Best Friends Mode
+                  <div className="text-sm font-normal mt-1">Strengthen your friendship</div>
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -1451,6 +1457,7 @@ const BondPetGame = () => {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-200 via-purple-200 to-pink-200 p-4">
         <div className="max-w-4xl mx-auto">
+          {/* Header */}
           <div className="bg-white rounded-2xl p-4 mb-4 shadow-lg">
             <div className="flex justify-between items-center">
               <div>
@@ -1458,92 +1465,84 @@ const BondPetGame = () => {
                 <p className="text-sm text-gray-600">
                   {relationshipMode === 'friends' && '👫 Best Friends Mode'}
                   {relationshipMode === 'couples' && '💕 Couples Mode'}
-                  {relationshipMode === 'family' && '👨‍👩‍👧 Family Mode'}
-                  {relationshipMode === 'mother-daughter' && '👩‍👧 Mother-Daughter Bond'}
-                  {relationshipMode === 'mother-father-son' && '👨‍👩‍👦 Mother-Father-Son Bond'}
-                  {relationshipMode === 'mother' && '👩 Mother Mode'}
                 </p>
               </div>
               <div className="text-right">
                 <div className="text-2xl font-bold text-yellow-600">🪙 {gameData.coins}</div>
-                <div className="text-sm text-gray-600">Puzzles: {gameData.puzzlesCompleted}</div>
               </div>
             </div>
           </div>
 
-          <div className="bg-white rounded-2xl p-6 mb-4 shadow-lg">
+          {/* Relationship Progress - Prominent */}
+          <div className="bg-white rounded-2xl p-6 mb-4 shadow-lg border-4 border-purple-300">
+            <h3 className="text-2xl font-bold text-center mb-4 text-purple-600">
+              💕 Your Relationship Progress
+            </h3>
+            
+            <div className="mb-6">
+              <div className="flex items-center justify-between mb-2">
+                <span className="font-semibold text-lg">Bond Level {gameData.bondLevel}</span>
+                <span className="text-gray-600">{gameData.relationshipProgress}%</span>
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-6">
+                <div className="bg-gradient-to-r from-pink-500 via-purple-500 to-blue-500 h-6 rounded-full transition-all flex items-center justify-end pr-2"
+                  style={{ width: `${gameData.relationshipProgress}%` }}>
+                  {gameData.relationshipProgress >= 10 && <span className="text-white text-xs font-bold">💖</span>}
+                </div>
+              </div>
+              <p className="text-sm text-gray-600 mt-2 text-center">
+                {gameData.conversationsCompleted} meaningful conversations completed
+              </p>
+            </div>
+
             <div className="text-center">
-              <div className="text-6xl sm:text-8xl mb-4">{getPetMood()}</div>
-              <h3 className="text-xl sm:text-2xl font-bold text-gray-800 mb-2">{gameData.pet.name}</h3>
-              <p className="text-gray-600 italic mb-4 text-sm sm:text-base">"{getPetMessage()}"</p>
-              
-              <div className="mb-4">
-                <div className="flex items-center justify-center gap-2 mb-2">
-                  <Heart className="text-red-500" size={20} />
-                  <span className="font-semibold">Happiness: {gameData.pet.happiness}%</span>
-                </div>
-                <div className="w-full bg-gray-200 rounded-full h-4">
-                  <div className="bg-gradient-to-r from-pink-500 to-red-500 h-4 rounded-full transition-all"
-                    style={{ width: `${gameData.pet.happiness}%` }}></div>
-                </div>
-              </div>
-
-              <div className="mb-4">
-                <div className="flex items-center justify-center gap-2 mb-2">
-                  <Sparkles className="text-purple-500" size={20} />
-                  <span className="font-semibold">Shared Progress: {gameData.sharedProgress}%</span>
-                </div>
-                <div className="w-full bg-gray-200 rounded-full h-4">
-                  <div className="bg-gradient-to-r from-purple-500 to-blue-500 h-4 rounded-full transition-all"
-                    style={{ width: `${gameData.sharedProgress}%` }}></div>
-                </div>
-              </div>
-
-              {gameData.inventory.length > 0 && (
-                <div className="mt-4">
-                  <p className="text-sm font-semibold mb-2">Your Pet's Items:</p>
-                  <div className="flex flex-wrap gap-2 justify-center">
-                    {gameData.inventory.map((item, idx) => (
-                      <span key={idx} className="text-2xl">{item.icon}</span>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <div className="mt-4">
-                <button onClick={() => setGameState('petSelection')}
-                  className="bg-purple-500 text-white px-4 py-2 rounded-lg font-semibold active:bg-purple-600 text-sm">
-                  🐾 Change Pet ({gameData.unlockedPets.length}/{petTypes.length} unlocked)
-                </button>
-              </div>
+              <div className="text-6xl mb-2">{getPetMood()}</div>
+              <h3 className="text-xl font-bold text-gray-800 mb-2">{gameData.pet.name}</h3>
+              <p className="text-gray-600 italic">"{getPetMessage()}"</p>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
-            <button onClick={() => setGameState('puzzleGames')}
-              className="bg-gradient-to-r from-pink-500 to-purple-500 text-white py-4 sm:py-4 rounded-xl font-semibold active:scale-95 transition-all flex items-center justify-center gap-2 text-base sm:text-lg min-h-[56px]">
-              <Star size={20} /> Puzzles 💕
-            </button>
-            <button onClick={() => setGameState('brickGames')}
-              className="bg-gradient-to-r from-purple-500 to-blue-500 text-white py-4 sm:py-4 rounded-xl font-semibold active:scale-95 transition-all flex items-center justify-center gap-2 text-base sm:text-lg min-h-[56px]">
-              🧱 Brick Games
-            </button>
-            <button onClick={() => setGameState('arcadeGames')}
-              className="bg-gradient-to-r from-yellow-500 to-orange-500 text-white py-4 sm:py-4 rounded-xl font-semibold active:scale-95 transition-all flex items-center justify-center gap-2 text-base sm:text-lg min-h-[56px]">
-              🕹️ Arcade
-            </button>
-            <button onClick={() => setGameState('boardGames')}
-              className="bg-gradient-to-r from-orange-500 to-red-500 text-white py-4 sm:py-4 rounded-xl font-semibold active:scale-95 transition-all flex items-center justify-center gap-2 text-base sm:text-lg min-h-[56px]">
-              <Gamepad2 size={20} /> Board Games
-            </button>
-            <button onClick={() => setGameState('shop')}
-              className="bg-gradient-to-r from-green-500 to-teal-500 text-white py-4 sm:py-4 rounded-xl font-semibold active:scale-95 transition-all flex items-center justify-center gap-2 text-base sm:text-lg min-h-[56px]">
-              <ShoppingBag size={20} /> Shop
-            </button>
-            <button onClick={() => setGameState('bibleVerses')}
-              className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white py-4 sm:py-4 rounded-xl font-semibold active:scale-95 transition-all flex items-center justify-center gap-2 text-base sm:text-lg min-h-[56px]">
-              ✨ Bible Verses ({gameData.bibleVerses.length})
-            </button>
+          {/* Primary Action - Conversations */}
+          <div className="bg-gradient-to-r from-pink-500 to-purple-500 rounded-2xl p-6 mb-4 shadow-lg text-white">
+            <h3 className="text-2xl font-bold mb-2 text-center">💬 Start a Conversation</h3>
+            <p className="text-center mb-4 opacity-90">Build your bond through meaningful conversations</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <button 
+                onClick={() => {
+                  setNeverHaveIEverIndex(0);
+                  setGameState('neverHaveIEver');
+                }}
+                className="bg-white text-pink-600 py-4 rounded-xl font-semibold hover:bg-pink-50 transition-all text-lg shadow-lg"
+              >
+                🎴 Never Have I Ever
+                <div className="text-sm font-normal mt-1 text-gray-600">Share and discover together</div>
+              </button>
+              <button 
+                onClick={() => {
+                  setRelationshipExplorerIndex(0);
+                  setGameState('relationshipExplorer');
+                }}
+                className="bg-white text-purple-600 py-4 rounded-xl font-semibold hover:bg-purple-50 transition-all text-lg shadow-lg"
+              >
+                💕 Relationship Explorer
+                <div className="text-sm font-normal mt-1 text-gray-600">Deep questions to connect</div>
+              </button>
+            </div>
+          </div>
+
+          {/* Secondary Activities */}
+          <div className="bg-white rounded-2xl p-4 mb-4 shadow-lg">
+            <h3 className="text-lg font-bold mb-3 text-center text-gray-700">Other Activities</h3>
+            <div className="grid grid-cols-2 gap-3">
+              <button onClick={() => setGameState('puzzleGames')}
+                className="bg-gradient-to-r from-pink-400 to-purple-400 text-white py-3 rounded-xl font-semibold active:scale-95 transition-all">
+                🧩 Puzzles
+              </button>
+              <button onClick={() => setGameState('boardGames')}
+                className="bg-gradient-to-r from-purple-400 to-blue-400 text-white py-3 rounded-xl font-semibold active:scale-95 transition-all">
+                🎲 Games
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -2397,12 +2396,27 @@ const BondPetGame = () => {
       setNeverHaveIEverIndex(prev => {
         const newIndex = (prev + 1) % questions.length;
         if (newIndex === 0) {
-          // Completed a round
+          // Completed a round - update relationship progress
+          setGameData(prev => {
+            const newProgress = Math.min(100, prev.relationshipProgress + 5);
+            const newBondLevel = Math.floor(newProgress / 20) + 1;
+            return {
+              ...prev,
+              coins: prev.coins + 20,
+              conversationsCompleted: prev.conversationsCompleted + 1,
+              relationshipProgress: newProgress,
+              bondLevel: newBondLevel,
+              pet: { ...prev.pet, happiness: Math.min(100, prev.pet.happiness + 5) },
+              conversationHistory: [...prev.conversationHistory, { type: 'neverHaveIEver', date: new Date() }]
+            };
+          });
+        } else {
+          // Each question answered increases progress slightly
           setGameData(prev => ({
             ...prev,
-            coins: prev.coins + 20,
-            pet: { ...prev.pet, happiness: Math.min(100, prev.pet.happiness + 3) },
-            sharedProgress: Math.min(100, prev.sharedProgress + 3)
+            conversationsCompleted: prev.conversationsCompleted + 1,
+            relationshipProgress: Math.min(100, prev.relationshipProgress + 1),
+            conversationHistory: [...prev.conversationHistory, { type: 'neverHaveIEver', date: new Date() }]
           }));
         }
         return newIndex;
@@ -2415,7 +2429,7 @@ const BondPetGame = () => {
           <div className="bg-white rounded-2xl p-6 shadow-lg">
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-2xl font-bold text-pink-600">🎴 Never Have I Ever</h2>
-              <button onClick={() => setGameState('boardGames')}
+              <button onClick={() => setGameState('pet')}
                 className="bg-gray-500 text-white px-4 py-2 rounded-lg font-semibold hover:bg-gray-600">
                 ← Back
               </button>
@@ -2424,6 +2438,17 @@ const BondPetGame = () => {
             <div className="text-center mb-6">
               <div className="text-sm text-gray-600 mb-2">
                 Question {neverHaveIEverIndex + 1} of {questions.length}
+              </div>
+              <div className="bg-purple-50 rounded-lg p-3 mb-4">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-sm font-semibold text-purple-700">Relationship Progress</span>
+                  <span className="text-sm font-bold text-purple-600">{gameData.relationshipProgress}%</span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-3">
+                  <div className="bg-gradient-to-r from-pink-500 to-purple-500 h-3 rounded-full transition-all"
+                    style={{ width: `${gameData.relationshipProgress}%` }}></div>
+                </div>
+                <p className="text-xs text-gray-600 mt-2">{gameData.conversationsCompleted} conversations completed</p>
               </div>
             </div>
 
@@ -2472,13 +2497,33 @@ const BondPetGame = () => {
       setRelationshipExplorerIndex(prev => {
         const newIndex = (prev + 1) % questions.length;
         if (newIndex === 0) {
-          // Completed a round
-          setGameData(prev => ({
-            ...prev,
-            coins: prev.coins + 30,
-            pet: { ...prev.pet, happiness: Math.min(100, prev.pet.happiness + 5) },
-            sharedProgress: Math.min(100, prev.sharedProgress + 5)
-          }));
+          // Completed a round - update relationship progress
+          setGameData(prev => {
+            const newProgress = Math.min(100, prev.relationshipProgress + 8);
+            const newBondLevel = Math.floor(newProgress / 20) + 1;
+            return {
+              ...prev,
+              coins: prev.coins + 30,
+              conversationsCompleted: prev.conversationsCompleted + 1,
+              relationshipProgress: newProgress,
+              bondLevel: newBondLevel,
+              pet: { ...prev.pet, happiness: Math.min(100, prev.pet.happiness + 8) },
+              conversationHistory: [...prev.conversationHistory, { type: 'relationshipExplorer', date: new Date() }]
+            };
+          });
+        } else {
+          // Each question answered increases progress
+          setGameData(prev => {
+            const newProgress = Math.min(100, prev.relationshipProgress + 2);
+            const newBondLevel = Math.floor(newProgress / 20) + 1;
+            return {
+              ...prev,
+              conversationsCompleted: prev.conversationsCompleted + 1,
+              relationshipProgress: newProgress,
+              bondLevel: newBondLevel,
+              conversationHistory: [...prev.conversationHistory, { type: 'relationshipExplorer', date: new Date() }]
+            };
+          });
         }
         return newIndex;
       });
@@ -2490,7 +2535,7 @@ const BondPetGame = () => {
           <div className="bg-white rounded-2xl p-6 shadow-lg">
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-2xl font-bold text-purple-600">💕 Relationship Explorer</h2>
-              <button onClick={() => setGameState('boardGames')}
+              <button onClick={() => setGameState('pet')}
                 className="bg-gray-500 text-white px-4 py-2 rounded-lg font-semibold hover:bg-gray-600">
                 ← Back
               </button>
@@ -2499,6 +2544,17 @@ const BondPetGame = () => {
             <div className="text-center mb-6">
               <div className="text-sm text-gray-600 mb-2">
                 Question {relationshipExplorerIndex + 1} of {questions.length}
+              </div>
+              <div className="bg-purple-50 rounded-lg p-3 mb-4">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-sm font-semibold text-purple-700">Relationship Progress</span>
+                  <span className="text-sm font-bold text-purple-600">{gameData.relationshipProgress}%</span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-3">
+                  <div className="bg-gradient-to-r from-pink-500 to-purple-500 h-3 rounded-full transition-all"
+                    style={{ width: `${gameData.relationshipProgress}%` }}></div>
+                </div>
+                <p className="text-xs text-gray-600 mt-2">{gameData.conversationsCompleted} conversations completed • Bond Level {gameData.bondLevel}</p>
               </div>
               <div className="text-xs text-purple-600 italic">
                 Take turns answering honestly and listen with an open heart
