@@ -32,6 +32,7 @@ const BondPetGame = () => {
       isSleeping: false // Whether pet is currently sleeping
     },
     inventory: [],
+    foodInventory: {}, // { '🍎': 0, '🍌': 0, etc. }
     coins: 0,
     conversationsCompleted: 0,
     relationshipProgress: 0, // 0-100, tracks relationship strength
@@ -1608,10 +1609,34 @@ const BondPetGame = () => {
             </div>
 
             <div className="text-center">
-              <div className="text-6xl mb-2">{getPetMood()}</div>
-              <h3 className="text-xl font-bold text-gray-800 mb-2">{gameData.pet.name}</h3>
+              {/* Enhanced Pet Display */}
+              <div className="relative mb-4">
+                <div className="bg-gradient-to-br from-pink-100 via-purple-100 to-blue-100 rounded-full p-8 inline-block shadow-lg border-4 border-purple-300">
+                  <div className="text-8xl mb-2 animate-pulse">{getPetMood()}</div>
+                </div>
+                {/* Pet Level Badge */}
+                <div className="absolute -top-2 -right-2 bg-gradient-to-r from-yellow-400 to-orange-500 text-white rounded-full w-12 h-12 flex items-center justify-center font-bold text-sm shadow-lg border-2 border-white">
+                  Lv.{gameData.pet.level}
+                </div>
+                {/* Love Hearts Animation */}
+                {gameData.pet.love > 70 && (
+                  <div className="absolute -top-4 left-1/2 transform -translate-x-1/2 animate-bounce">
+                    <span className="text-2xl">💕</span>
+                  </div>
+                )}
+              </div>
+              <h3 className="text-2xl font-bold text-gray-800 mb-2">{gameData.pet.name}</h3>
               <p className="text-sm text-purple-600 font-semibold mb-2">✨ The Fruit of Your Love ✨</p>
               <p className="text-gray-600 italic mb-4">"{getPetMessage()}"</p>
+              
+              {/* Pet Status Icons */}
+              <div className="flex justify-center gap-2 mb-4">
+                {gameData.pet.hunger > 50 && <span className="text-2xl" title="Well Fed">🍽️</span>}
+                {gameData.pet.cleanliness > 50 && <span className="text-2xl" title="Clean">✨</span>}
+                {gameData.pet.energy > 50 && <span className="text-2xl" title="Energetic">⚡</span>}
+                {gameData.pet.learning > 30 && <span className="text-2xl" title="Learning">📚</span>}
+                {gameData.pet.love > 70 && <span className="text-2xl" title="Loved">💖</span>}
+              </div>
               
               {/* Pet Needs - Baby Care Stats */}
               {gameData.pet.isSleeping ? (
@@ -1835,9 +1860,92 @@ const BondPetGame = () => {
     );
   }
 
+  // Food shop items
+  const foodItems = [
+    { emoji: '🍎', name: 'Apple', cost: 5, nutrition: 15 },
+    { emoji: '🍌', name: 'Banana', cost: 5, nutrition: 15 },
+    { emoji: '🥕', name: 'Carrot', cost: 4, nutrition: 12 },
+    { emoji: '🍞', name: 'Bread', cost: 6, nutrition: 18 },
+    { emoji: '🥛', name: 'Milk', cost: 8, nutrition: 20 },
+    { emoji: '🥚', name: 'Egg', cost: 7, nutrition: 20 },
+    { emoji: '🍇', name: 'Grapes', cost: 6, nutrition: 15 },
+    { emoji: '🍓', name: 'Strawberry', cost: 5, nutrition: 12 },
+    { emoji: '🍗', name: 'Chicken', cost: 12, nutrition: 30 },
+    { emoji: '🥗', name: 'Salad', cost: 10, nutrition: 25 }
+  ];
+
+  // Food Shop
+  if (gameState === 'foodShop') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-green-200 via-yellow-200 to-orange-200 p-4">
+        <div className="max-w-4xl mx-auto">
+          <div className="bg-white rounded-2xl p-6 shadow-lg">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-bold text-green-600">🛒 Food Shop</h2>
+              <div className="flex gap-3">
+                <div className="text-xl font-bold text-yellow-600">🪙 {gameData.coins}</div>
+                <button onClick={() => setGameState('pet')}
+                  className="bg-gray-500 text-white px-4 py-2 rounded-lg font-semibold hover:bg-gray-600">
+                  ← Back
+                </button>
+              </div>
+            </div>
+            
+            <p className="text-gray-600 mb-6 text-center">Buy food to feed {gameData.pet.name}!</p>
+            
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
+              {foodItems.map((food) => {
+                const quantity = gameData.foodInventory[food.emoji] || 0;
+                const canAfford = gameData.coins >= food.cost;
+                
+                return (
+                  <div key={food.emoji} className="bg-gradient-to-br from-green-50 to-yellow-50 rounded-xl p-4 border-2 border-green-200">
+                    <div className="text-center mb-3">
+                      <div className="text-5xl mb-2">{food.emoji}</div>
+                      <div className="font-semibold text-sm text-gray-700">{food.name}</div>
+                      <div className="text-xs text-gray-600">+{food.nutrition} hunger</div>
+                    </div>
+                    <div className="text-center mb-2">
+                      <div className="text-lg font-bold text-yellow-600">🪙 {food.cost}</div>
+                      {quantity > 0 && (
+                        <div className="text-xs text-green-600 font-semibold">Own: {quantity}</div>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => {
+                        if (canAfford) {
+                          setGameData(prev => ({
+                            ...prev,
+                            coins: prev.coins - food.cost,
+                            foodInventory: {
+                              ...prev.foodInventory,
+                              [food.emoji]: (prev.foodInventory[food.emoji] || 0) + 1
+                            }
+                          }));
+                        }
+                      }}
+                      disabled={!canAfford}
+                      className={`w-full py-2 rounded-lg font-semibold text-sm ${
+                        canAfford
+                          ? 'bg-green-500 text-white hover:bg-green-600 active:scale-95'
+                          : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                      }`}
+                    >
+                      {canAfford ? 'Buy' : 'Not Enough'}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // Interactive Feeding Activity
   if (gameState === 'feeding') {
-    const foods = ['🍎', '🍌', '🥕', '🍞', '🥛', '🥚', '🍇', '🍓'];
+    const availableFoods = foodItems.filter(food => (gameData.foodInventory[food.emoji] || 0) > 0);
     
     if (feedingStep === 0) {
       return (
@@ -1853,25 +1961,57 @@ const BondPetGame = () => {
               </div>
               
               <div className="text-center mb-6">
-                <div className="text-6xl mb-4">{getPetMood()}</div>
+                <div className="text-6xl mb-4 animate-bounce">{getPetMood()}</div>
                 <p className="text-lg text-gray-700 mb-4">Choose what to feed {gameData.pet.name}:</p>
               </div>
               
-              <div className="grid grid-cols-4 gap-4 mb-6">
-                {foods.map((food, idx) => (
+              {availableFoods.length === 0 ? (
+                <div className="text-center py-8">
+                  <div className="text-5xl mb-4">🛒</div>
+                  <p className="text-lg text-gray-700 mb-4">No food in inventory!</p>
+                  <p className="text-gray-600 mb-6">Visit the food shop to buy food for {gameData.pet.name}</p>
                   <button
-                    key={idx}
-                    onClick={() => {
-                      setSelectedFood(food);
-                      setFeedingStep(1);
-                      setFeedingProgress(0);
-                    }}
-                    className="bg-gradient-to-br from-orange-100 to-red-100 p-6 rounded-xl hover:scale-110 transition-all active:scale-95 border-2 border-orange-300"
+                    onClick={() => setGameState('foodShop')}
+                    className="bg-gradient-to-r from-green-400 to-emerald-500 text-white px-8 py-4 rounded-xl font-semibold hover:shadow-lg transition-all text-lg"
                   >
-                    <div className="text-5xl mb-2">{food}</div>
+                    🛒 Go to Food Shop
                   </button>
-                ))}
-              </div>
+                </div>
+              ) : (
+                <>
+                  <div className="grid grid-cols-4 gap-4 mb-6">
+                    {availableFoods.map((food) => {
+                      const quantity = gameData.foodInventory[food.emoji] || 0;
+                      return (
+                        <button
+                          key={food.emoji}
+                          onClick={() => {
+                            setSelectedFood(food);
+                            setFeedingStep(1);
+                            setFeedingProgress(0);
+                          }}
+                          className="bg-gradient-to-br from-orange-100 to-red-100 p-6 rounded-xl hover:scale-110 transition-all active:scale-95 border-2 border-orange-300 relative"
+                        >
+                          <div className="text-5xl mb-2">{food.emoji}</div>
+                          {quantity > 1 && (
+                            <div className="absolute top-1 right-1 bg-green-500 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center">
+                              {quantity}
+                            </div>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="text-center">
+                    <button
+                      onClick={() => setGameState('foodShop')}
+                      className="text-sm text-blue-600 hover:underline"
+                    >
+                      🛒 Buy More Food
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -1895,8 +2035,8 @@ const BondPetGame = () => {
               </div>
               
               <div className="text-center mb-6">
-                <div className="text-6xl mb-4">{selectedFood}</div>
-                <p className="text-lg text-gray-700 mb-4">Feed {gameData.pet.name} the {selectedFood}</p>
+                <div className="text-6xl mb-4 animate-bounce">{selectedFood?.emoji || selectedFood}</div>
+                <p className="text-lg text-gray-700 mb-4">Feed {gameData.pet.name} the {selectedFood?.name || selectedFood}</p>
                 <div className="w-full bg-gray-200 rounded-full h-4 mb-4">
                   <div className="bg-gradient-to-r from-orange-400 to-red-500 h-4 rounded-full transition-all"
                     style={{ width: `${feedingProgress}%` }}></div>
@@ -1913,9 +2053,13 @@ const BondPetGame = () => {
                     if (newProgress >= 100) {
                       setFeedingStep(2);
                       setGameData(prev => {
-                        const newHunger = Math.min(100, prev.pet.hunger + 30);
+                        const foodEmoji = selectedFood?.emoji || selectedFood;
+                        const foodItem = foodItems.find(f => f.emoji === foodEmoji) || foodItems[0];
+                        const newHunger = Math.min(100, prev.pet.hunger + foodItem.nutrition);
                         const newLove = Math.min(100, prev.pet.love + 5);
                         const newProgress = Math.min(100, prev.relationshipProgress + 3);
+                        const newQuantity = Math.max(0, (prev.foodInventory[foodEmoji] || 0) - 1);
+                        
                         return {
                           ...prev,
                           pet: {
@@ -1926,6 +2070,10 @@ const BondPetGame = () => {
                             energy: Math.min(100, prev.pet.energy + 5)
                           },
                           relationshipProgress: newProgress,
+                          foodInventory: {
+                            ...prev.foodInventory,
+                            [foodEmoji]: newQuantity
+                          },
                           careHistory: [...prev.careHistory, { action: 'feed', player: currentPlayer, time: new Date() }],
                           lastCareAction: { action: 'feed', player: currentPlayer }
                         };
