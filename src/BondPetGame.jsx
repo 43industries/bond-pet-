@@ -7,6 +7,16 @@ const BondPetGame = () => {
   const [currentPlayer, setCurrentPlayer] = useState(null);
   const [relationshipMode, setRelationshipMode] = useState(null);
   const [selectedPetType, setSelectedPetType] = useState(null);
+  
+  // Interactive care activity states
+  const [feedingStep, setFeedingStep] = useState(0); // 0: prepare, 1: feeding, 2: done
+  const [teachingStep, setTeachingStep] = useState(0); // 0: choose, 1: teaching, 2: done
+  const [bedtimeStep, setBedtimeStep] = useState(0); // 0: routine, 1: story, 2: tuck in, 3: done
+  const [feedingProgress, setFeedingProgress] = useState(0);
+  const [teachingActivity, setTeachingActivity] = useState(null);
+  const [bedtimeStory, setBedtimeStory] = useState('');
+  const [selectedFood, setSelectedFood] = useState(null);
+  const [currentWordIndex, setCurrentWordIndex] = useState(0);
   const [gameData, setGameData] = useState({
     pet: { 
       name: 'Buddy', 
@@ -1702,24 +1712,9 @@ const BondPetGame = () => {
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <button
                   onClick={() => {
-                    setGameData(prev => {
-                      const newHunger = Math.min(100, prev.pet.hunger + 25);
-                      const newLove = Math.min(100, prev.pet.love + 3);
-                      const newProgress = Math.min(100, prev.relationshipProgress + 2);
-                      return {
-                        ...prev,
-                        pet: {
-                          ...prev.pet,
-                          hunger: newHunger,
-                          love: newLove,
-                          happiness: Math.min(100, prev.pet.happiness + 3),
-                          energy: Math.min(100, prev.pet.energy + 5)
-                        },
-                        relationshipProgress: newProgress,
-                        careHistory: [...prev.careHistory, { action: 'feed', player: currentPlayer, time: new Date() }],
-                        lastCareAction: { action: 'feed', player: currentPlayer }
-                      };
-                    });
+                    setFeedingStep(0);
+                    setFeedingProgress(0);
+                    setGameState('feeding');
                   }}
                   className="bg-gradient-to-r from-orange-400 to-red-500 text-white py-4 rounded-xl font-semibold hover:shadow-lg transition-all active:scale-95"
                 >
@@ -1729,20 +1724,9 @@ const BondPetGame = () => {
                 
                 <button
                   onClick={() => {
-                    setGameData(prev => {
-                      return {
-                        ...prev,
-                        pet: {
-                          ...prev.pet,
-                          isSleeping: true,
-                          sleepiness: Math.max(0, prev.pet.sleepiness - 40),
-                          love: Math.min(100, prev.pet.love + 5)
-                        },
-                        relationshipProgress: Math.min(100, prev.relationshipProgress + 3),
-                        careHistory: [...prev.careHistory, { action: 'bedtime', player: currentPlayer, time: new Date() }],
-                        lastCareAction: { action: 'bedtime', player: currentPlayer }
-                      };
-                    });
+                    setBedtimeStep(0);
+                    setBedtimeStory('');
+                    setGameState('bedtime');
                   }}
                   className="bg-gradient-to-r from-indigo-400 to-purple-500 text-white py-4 rounded-xl font-semibold hover:shadow-lg transition-all active:scale-95"
                 >
@@ -1752,24 +1736,9 @@ const BondPetGame = () => {
                 
                 <button
                   onClick={() => {
-                    setGameData(prev => {
-                      const newLearning = Math.min(100, prev.pet.learning + 15);
-                      const newLove = Math.min(100, prev.pet.love + 4);
-                      const newProgress = Math.min(100, prev.relationshipProgress + 3);
-                      return {
-                        ...prev,
-                        pet: {
-                          ...prev.pet,
-                          learning: newLearning,
-                          love: newLove,
-                          happiness: Math.min(100, prev.pet.happiness + 4),
-                          energy: Math.max(0, prev.pet.energy - 5) // Learning can be tiring
-                        },
-                        relationshipProgress: newProgress,
-                        careHistory: [...prev.careHistory, { action: 'teach', player: currentPlayer, time: new Date() }],
-                        lastCareAction: { action: 'teach', player: currentPlayer }
-                      };
-                    });
+                    setTeachingStep(0);
+                    setTeachingActivity(null);
+                    setGameState('teaching');
                   }}
                   className="bg-gradient-to-r from-yellow-400 to-orange-500 text-white py-4 rounded-xl font-semibold hover:shadow-lg transition-all active:scale-95"
                 >
@@ -1864,6 +1833,442 @@ const BondPetGame = () => {
         </div>
       </div>
     );
+  }
+
+  // Interactive Feeding Activity
+  if (gameState === 'feeding') {
+    const foods = ['🍎', '🍌', '🥕', '🍞', '🥛', '🥚', '🍇', '🍓'];
+    
+    if (feedingStep === 0) {
+      return (
+        <div className="min-h-screen bg-gradient-to-br from-orange-200 via-red-200 to-pink-200 p-4">
+          <div className="max-w-2xl mx-auto">
+            <div className="bg-white rounded-2xl p-6 shadow-lg">
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-bold text-orange-600">🍽️ Feed {gameData.pet.name}</h2>
+                <button onClick={() => setGameState('pet')}
+                  className="bg-gray-500 text-white px-4 py-2 rounded-lg font-semibold hover:bg-gray-600">
+                  ← Back
+                </button>
+              </div>
+              
+              <div className="text-center mb-6">
+                <div className="text-6xl mb-4">{getPetMood()}</div>
+                <p className="text-lg text-gray-700 mb-4">Choose what to feed {gameData.pet.name}:</p>
+              </div>
+              
+              <div className="grid grid-cols-4 gap-4 mb-6">
+                {foods.map((food, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => {
+                      setSelectedFood(food);
+                      setFeedingStep(1);
+                      setFeedingProgress(0);
+                    }}
+                    className="bg-gradient-to-br from-orange-100 to-red-100 p-6 rounded-xl hover:scale-110 transition-all active:scale-95 border-2 border-orange-300"
+                  >
+                    <div className="text-5xl mb-2">{food}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    
+    if (feedingStep === 1) {
+      return (
+        <div className="min-h-screen bg-gradient-to-br from-orange-200 via-red-200 to-pink-200 p-4">
+          <div className="max-w-2xl mx-auto">
+            <div className="bg-white rounded-2xl p-6 shadow-lg">
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-bold text-orange-600">🍽️ Feeding {gameData.pet.name}</h2>
+                <button onClick={() => {
+                  setFeedingStep(0);
+                  setFeedingProgress(0);
+                }}
+                  className="bg-gray-500 text-white px-4 py-2 rounded-lg font-semibold hover:bg-gray-600">
+                  ← Back
+                </button>
+              </div>
+              
+              <div className="text-center mb-6">
+                <div className="text-6xl mb-4">{selectedFood}</div>
+                <p className="text-lg text-gray-700 mb-4">Feed {gameData.pet.name} the {selectedFood}</p>
+                <div className="w-full bg-gray-200 rounded-full h-4 mb-4">
+                  <div className="bg-gradient-to-r from-orange-400 to-red-500 h-4 rounded-full transition-all"
+                    style={{ width: `${feedingProgress}%` }}></div>
+                </div>
+                <p className="text-sm text-gray-600">{Math.round(feedingProgress)}% fed</p>
+              </div>
+              
+              <div className="text-center">
+                <button
+                  onClick={() => {
+                    const newProgress = Math.min(100, feedingProgress + 10);
+                    setFeedingProgress(newProgress);
+                    
+                    if (newProgress >= 100) {
+                      setFeedingStep(2);
+                      setGameData(prev => {
+                        const newHunger = Math.min(100, prev.pet.hunger + 30);
+                        const newLove = Math.min(100, prev.pet.love + 5);
+                        const newProgress = Math.min(100, prev.relationshipProgress + 3);
+                        return {
+                          ...prev,
+                          pet: {
+                            ...prev.pet,
+                            hunger: newHunger,
+                            love: newLove,
+                            happiness: Math.min(100, prev.pet.happiness + 5),
+                            energy: Math.min(100, prev.pet.energy + 5)
+                          },
+                          relationshipProgress: newProgress,
+                          careHistory: [...prev.careHistory, { action: 'feed', player: currentPlayer, time: new Date() }],
+                          lastCareAction: { action: 'feed', player: currentPlayer }
+                        };
+                      });
+                    }
+                  }}
+                  className="bg-gradient-to-r from-orange-400 to-red-500 text-white px-8 py-4 rounded-xl font-semibold hover:shadow-lg transition-all text-lg active:scale-95"
+                >
+                  {feedingProgress < 100 ? '🍽️ Feed More' : '✅ Done!'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    
+    if (feedingStep === 2) {
+      return (
+        <div className="min-h-screen bg-gradient-to-br from-orange-200 via-red-200 to-pink-200 p-4">
+          <div className="max-w-2xl mx-auto">
+            <div className="bg-white rounded-2xl p-6 shadow-lg text-center">
+              <div className="text-6xl mb-4">😊</div>
+              <h2 className="text-2xl font-bold text-green-600 mb-4">Great job!</h2>
+              <p className="text-lg text-gray-700 mb-6">{gameData.pet.name} is full and happy!</p>
+              <button
+                onClick={() => {
+                  setFeedingStep(0);
+                  setFeedingProgress(0);
+                  setGameState('pet');
+                }}
+                className="bg-gradient-to-r from-green-400 to-emerald-500 text-white px-8 py-4 rounded-xl font-semibold hover:shadow-lg transition-all text-lg"
+              >
+                Return to Pet 💕
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+  }
+
+  // Interactive Teaching Activity
+  if (gameState === 'teaching') {
+    const teachingActivities = [
+      { id: 'colors', name: 'Colors', icon: '🌈', words: ['Red', 'Blue', 'Green', 'Yellow', 'Purple'] },
+      { id: 'numbers', name: 'Numbers', icon: '🔢', words: ['One', 'Two', 'Three', 'Four', 'Five'] },
+      { id: 'animals', name: 'Animals', icon: '🐾', words: ['Dog', 'Cat', 'Bird', 'Fish', 'Rabbit'] },
+      { id: 'shapes', name: 'Shapes', icon: '🔷', words: ['Circle', 'Square', 'Triangle', 'Star', 'Heart'] }
+    ];
+    
+    if (teachingStep === 0) {
+      return (
+        <div className="min-h-screen bg-gradient-to-br from-yellow-200 via-orange-200 to-amber-200 p-4">
+          <div className="max-w-2xl mx-auto">
+            <div className="bg-white rounded-2xl p-6 shadow-lg">
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-bold text-yellow-600">📚 Teach {gameData.pet.name}</h2>
+                <button onClick={() => setGameState('pet')}
+                  className="bg-gray-500 text-white px-4 py-2 rounded-lg font-semibold hover:bg-gray-600">
+                  ← Back
+                </button>
+              </div>
+              
+              <div className="text-center mb-6">
+                <div className="text-6xl mb-4">{getPetMood()}</div>
+                <p className="text-lg text-gray-700 mb-4">What would you like to teach {gameData.pet.name} today?</p>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                {teachingActivities.map((activity) => (
+                  <button
+                    key={activity.id}
+                    onClick={() => {
+                      setTeachingActivity(activity);
+                      setTeachingStep(1);
+                      setCurrentWordIndex(0);
+                    }}
+                    className="bg-gradient-to-br from-yellow-100 to-orange-100 p-6 rounded-xl hover:scale-105 transition-all active:scale-95 border-2 border-yellow-300"
+                  >
+                    <div className="text-5xl mb-2">{activity.icon}</div>
+                    <div className="font-semibold text-lg">{activity.name}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    
+    if (teachingStep === 1 && teachingActivity) {
+      const currentWord = teachingActivity.words[currentWordIndex];
+      const isComplete = currentWordIndex >= teachingActivity.words.length;
+      
+      return (
+        <div className="min-h-screen bg-gradient-to-br from-yellow-200 via-orange-200 to-amber-200 p-4">
+          <div className="max-w-2xl mx-auto">
+            <div className="bg-white rounded-2xl p-6 shadow-lg">
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-bold text-yellow-600">📚 Teaching {teachingActivity.name}</h2>
+                <button onClick={() => {
+                  setTeachingStep(0);
+                  setCurrentWordIndex(0);
+                }}
+                  className="bg-gray-500 text-white px-4 py-2 rounded-lg font-semibold hover:bg-gray-600">
+                  ← Back
+                </button>
+              </div>
+              
+              {!isComplete ? (
+                <>
+                  <div className="text-center mb-6">
+                    <div className="text-7xl mb-4">{teachingActivity.icon}</div>
+                    <div className="text-5xl font-bold text-gray-800 mb-4">{currentWord}</div>
+                    <p className="text-gray-600 mb-4">
+                      Word {currentWordIndex + 1} of {teachingActivity.words.length}
+                    </p>
+                    <div className="w-full bg-gray-200 rounded-full h-3 mb-4">
+                      <div className="bg-gradient-to-r from-yellow-400 to-orange-500 h-3 rounded-full transition-all"
+                        style={{ width: `${((currentWordIndex + 1) / teachingActivity.words.length) * 100}%` }}></div>
+                    </div>
+                  </div>
+                  
+                  <div className="text-center">
+                    <p className="text-lg text-gray-700 mb-4">Say "{currentWord}" together and point to examples!</p>
+                    <button
+                      onClick={() => {
+                        if (currentWordIndex < teachingActivity.words.length - 1) {
+                          setCurrentWordIndex(currentWordIndex + 1);
+                        } else {
+                          setTeachingStep(2);
+                          setGameData(prev => {
+                            const newLearning = Math.min(100, prev.pet.learning + 20);
+                            const newLove = Math.min(100, prev.pet.love + 6);
+                            const newProgress = Math.min(100, prev.relationshipProgress + 4);
+                            return {
+                              ...prev,
+                              pet: {
+                                ...prev.pet,
+                                learning: newLearning,
+                                love: newLove,
+                                happiness: Math.min(100, prev.pet.happiness + 6),
+                                energy: Math.max(0, prev.pet.energy - 5)
+                              },
+                              relationshipProgress: newProgress,
+                              careHistory: [...prev.careHistory, { action: 'teach', player: currentPlayer, time: new Date() }],
+                              lastCareAction: { action: 'teach', player: currentPlayer }
+                            };
+                          });
+                        }
+                      }}
+                      className="bg-gradient-to-r from-yellow-400 to-orange-500 text-white px-8 py-4 rounded-xl font-semibold hover:shadow-lg transition-all text-lg active:scale-95"
+                    >
+                      {currentWordIndex < teachingActivity.words.length - 1 ? '➡️ Next Word' : '✅ Complete Lesson'}
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <div className="text-center">
+                  <div className="text-6xl mb-4">🎉</div>
+                  <h2 className="text-2xl font-bold text-green-600 mb-4">Lesson Complete!</h2>
+                  <p className="text-lg text-gray-700 mb-6">{gameData.pet.name} learned {teachingActivity.name}!</p>
+                  <button
+                    onClick={() => {
+                      setTeachingStep(0);
+                      setCurrentWordIndex(0);
+                      setTeachingActivity(null);
+                      setGameState('pet');
+                    }}
+                    className="bg-gradient-to-r from-green-400 to-emerald-500 text-white px-8 py-4 rounded-xl font-semibold hover:shadow-lg transition-all text-lg"
+                  >
+                    Return to Pet 💕
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      );
+    }
+  }
+
+  // Interactive Bedtime Routine
+  if (gameState === 'bedtime') {
+    const bedtimeStories = [
+      "Once upon a time, there was a little pet who was loved very much by two special people...",
+      "In a cozy home, a tiny pet dreamed of adventures with their loving family...",
+      "The stars twinkled as a little pet snuggled close, feeling safe and loved...",
+      "A magical pet discovered that love makes everything grow, just like a beautiful garden..."
+    ];
+    
+    if (bedtimeStep === 0) {
+      return (
+        <div className="min-h-screen bg-gradient-to-br from-indigo-200 via-purple-200 to-blue-200 p-4">
+          <div className="max-w-2xl mx-auto">
+            <div className="bg-white rounded-2xl p-6 shadow-lg">
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-bold text-indigo-600">🛏️ Bedtime for {gameData.pet.name}</h2>
+                <button onClick={() => setGameState('pet')}
+                  className="bg-gray-500 text-white px-4 py-2 rounded-lg font-semibold hover:bg-gray-600">
+                  ← Back
+                </button>
+              </div>
+              
+              <div className="text-center mb-6">
+                <div className="text-6xl mb-4">{getPetMood()}</div>
+                <p className="text-lg text-gray-700 mb-4">Let's get {gameData.pet.name} ready for bed</p>
+              </div>
+              
+              <div className="space-y-4 mb-6">
+                <div className="bg-indigo-50 rounded-lg p-4 border-2 border-indigo-200">
+                  <h3 className="font-semibold text-indigo-700 mb-2">Bedtime Routine:</h3>
+                  <ul className="text-sm text-gray-700 space-y-1">
+                    <li>✅ Change into pajamas</li>
+                    <li>✅ Brush teeth</li>
+                    <li>✅ Read a bedtime story</li>
+                    <li>✅ Tuck in and say goodnight</li>
+                  </ul>
+                </div>
+              </div>
+              
+              <button
+                onClick={() => {
+                  setBedtimeStep(1);
+                  setBedtimeStory(bedtimeStories[Math.floor(Math.random() * bedtimeStories.length)]);
+                }}
+                className="w-full bg-gradient-to-r from-indigo-400 to-purple-500 text-white py-4 rounded-xl font-semibold hover:shadow-lg transition-all text-lg active:scale-95"
+              >
+                Start Bedtime Routine 🌙
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    
+    if (bedtimeStep === 1) {
+      return (
+        <div className="min-h-screen bg-gradient-to-br from-indigo-200 via-purple-200 to-blue-200 p-4">
+          <div className="max-w-2xl mx-auto">
+            <div className="bg-white rounded-2xl p-6 shadow-lg">
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-bold text-indigo-600">📖 Bedtime Story</h2>
+                <button onClick={() => setBedtimeStep(0)}
+                  className="bg-gray-500 text-white px-4 py-2 rounded-lg font-semibold hover:bg-gray-600">
+                  ← Back
+                </button>
+              </div>
+              
+              <div className="text-center mb-6">
+                <div className="text-6xl mb-4">📚</div>
+                <div className="bg-indigo-50 rounded-lg p-6 mb-4">
+                  <p className="text-lg text-gray-700 leading-relaxed italic">"{bedtimeStory}"</p>
+                </div>
+                <p className="text-sm text-gray-600">Read this story together to {gameData.pet.name}</p>
+              </div>
+              
+              <button
+                onClick={() => setBedtimeStep(2)}
+                className="w-full bg-gradient-to-r from-indigo-400 to-purple-500 text-white py-4 rounded-xl font-semibold hover:shadow-lg transition-all text-lg active:scale-95"
+              >
+                Story Finished ➡️
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    
+    if (bedtimeStep === 2) {
+      return (
+        <div className="min-h-screen bg-gradient-to-br from-indigo-200 via-purple-200 to-blue-200 p-4">
+          <div className="max-w-2xl mx-auto">
+            <div className="bg-white rounded-2xl p-6 shadow-lg">
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-bold text-indigo-600">🌙 Tuck {gameData.pet.name} In</h2>
+                <button onClick={() => setBedtimeStep(1)}
+                  className="bg-gray-500 text-white px-4 py-2 rounded-lg font-semibold hover:bg-gray-600">
+                  ← Back
+                </button>
+              </div>
+              
+              <div className="text-center mb-6">
+                <div className="text-6xl mb-4">😴</div>
+                <p className="text-lg text-gray-700 mb-4">Tuck {gameData.pet.name} in and say goodnight</p>
+                <div className="bg-indigo-50 rounded-lg p-4 mb-4">
+                  <p className="text-gray-700">💤 {gameData.pet.name} is getting sleepy...</p>
+                </div>
+              </div>
+              
+              <button
+                onClick={() => {
+                  setBedtimeStep(3);
+                  setGameData(prev => {
+                    return {
+                      ...prev,
+                      pet: {
+                        ...prev.pet,
+                        isSleeping: true,
+                        sleepiness: Math.max(0, prev.pet.sleepiness - 50),
+                        love: Math.min(100, prev.pet.love + 8),
+                        happiness: Math.min(100, prev.pet.happiness + 5)
+                      },
+                      relationshipProgress: Math.min(100, prev.relationshipProgress + 5),
+                      careHistory: [...prev.careHistory, { action: 'bedtime', player: currentPlayer, time: new Date() }],
+                      lastCareAction: { action: 'bedtime', player: currentPlayer }
+                    };
+                  });
+                }}
+                className="w-full bg-gradient-to-r from-indigo-400 to-purple-500 text-white py-4 rounded-xl font-semibold hover:shadow-lg transition-all text-lg active:scale-95"
+              >
+                💤 Say Goodnight & Tuck In
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    
+    if (bedtimeStep === 3) {
+      return (
+        <div className="min-h-screen bg-gradient-to-br from-indigo-200 via-purple-200 to-blue-200 p-4">
+          <div className="max-w-2xl mx-auto">
+            <div className="bg-white rounded-2xl p-6 shadow-lg text-center">
+              <div className="text-6xl mb-4">😴✨</div>
+              <h2 className="text-2xl font-bold text-indigo-600 mb-4">Sweet Dreams!</h2>
+              <p className="text-lg text-gray-700 mb-6">{gameData.pet.name} is sleeping peacefully...</p>
+              <button
+                onClick={() => {
+                  setBedtimeStep(0);
+                  setBedtimeStory('');
+                  setGameState('pet');
+                }}
+                className="bg-gradient-to-r from-indigo-400 to-purple-500 text-white px-8 py-4 rounded-xl font-semibold hover:shadow-lg transition-all text-lg"
+              >
+                Return to Pet 💕
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
   }
 
   if (gameState === 'petShop') {
