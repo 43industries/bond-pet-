@@ -11,7 +11,9 @@ const BondPetGame = () => {
   // Interactive care activity states
   const [feedingStep, setFeedingStep] = useState(0); // 0: prepare, 1: feeding, 2: done
   const [teachingStep, setTeachingStep] = useState(0); // 0: choose, 1: teaching, 2: done
-  const [bedtimeStep, setBedtimeStep] = useState(0); // 0: routine, 1: story, 2: tuck in, 3: done
+  const [bedtimeStep, setBedtimeStep] = useState(0); // 0: routine, 1: pajamas, 2: brush teeth, 3: story, 4: tuck in, 5: done
+  const [pajamasProgress, setPajamasProgress] = useState(0);
+  const [teethBrushingProgress, setTeethBrushingProgress] = useState(0);
   const [feedingProgress, setFeedingProgress] = useState(0);
   const [teachingActivity, setTeachingActivity] = useState(null);
   const [bedtimeStory, setBedtimeStory] = useState('');
@@ -2322,30 +2324,124 @@ const BondPetGame = () => {
                 <div className="bg-indigo-50 rounded-lg p-4 border-2 border-indigo-200">
                   <h3 className="font-semibold text-indigo-700 mb-2">Bedtime Routine:</h3>
                   <ul className="text-sm text-gray-700 space-y-1">
-                    <li>✅ Change into pajamas</li>
-                    <li>✅ Brush teeth</li>
-                    <li>✅ Read a bedtime story</li>
-                    <li>✅ Tuck in and say goodnight</li>
+                    <li>🛏️ Change into pajamas</li>
+                    <li>🪥 Brush teeth</li>
+                    <li>📖 Read a bedtime story</li>
+                    <li>💤 Tuck in and say goodnight</li>
                   </ul>
-            </div>
-          </div>
-
+                </div>
+              </div>
+              
               <button
                 onClick={() => {
                   setBedtimeStep(1);
-                  setBedtimeStory(bedtimeStories[Math.floor(Math.random() * bedtimeStories.length)]);
+                  setPajamasProgress(0);
                 }}
                 className="w-full bg-gradient-to-r from-indigo-400 to-purple-500 text-white py-4 rounded-xl font-semibold hover:shadow-lg transition-all text-lg active:scale-95"
               >
                 Start Bedtime Routine 🌙
-            </button>
+              </button>
             </div>
           </div>
         </div>
       );
     }
     
+    // Step 1: Change into pajamas
     if (bedtimeStep === 1) {
+      return (
+        <div className="min-h-screen bg-gradient-to-br from-indigo-200 via-purple-200 to-blue-200 p-4">
+          <div className="max-w-2xl mx-auto">
+            <div className="bg-white rounded-2xl p-6 shadow-lg">
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-bold text-indigo-600">🛏️ Change into Pajamas</h2>
+                <button onClick={() => setBedtimeStep(0)}
+                  className="bg-gray-500 text-white px-4 py-2 rounded-lg font-semibold hover:bg-gray-600">
+                  ← Back
+                </button>
+              </div>
+              
+              <div className="text-center mb-6">
+                <div className="text-6xl mb-4">🛏️</div>
+                <p className="text-lg text-gray-700 mb-4">Help {gameData.pet.name} change into cozy pajamas</p>
+                <div className="w-full bg-gray-200 rounded-full h-4 mb-4">
+                  <div className="bg-gradient-to-r from-indigo-400 to-purple-500 h-4 rounded-full transition-all"
+                    style={{ width: `${pajamasProgress}%` }}></div>
+                </div>
+                <p className="text-sm text-gray-600">{Math.round(pajamasProgress)}% done</p>
+              </div>
+              
+              <div className="text-center">
+                <button
+                  onClick={() => {
+                    const newProgress = Math.min(100, pajamasProgress + 25);
+                    setPajamasProgress(newProgress);
+                    
+                    if (newProgress >= 100) {
+                      setBedtimeStep(2);
+                      setTeethBrushingProgress(0);
+                    }
+                  }}
+                  className="bg-gradient-to-r from-indigo-400 to-purple-500 text-white px-8 py-4 rounded-xl font-semibold hover:shadow-lg transition-all text-lg active:scale-95"
+                >
+                  {pajamasProgress < 100 ? '👕 Put on Pajamas' : '✅ Done!'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    
+    // Step 2: Brush teeth
+    if (bedtimeStep === 2) {
+      return (
+        <div className="min-h-screen bg-gradient-to-br from-cyan-200 via-blue-200 to-indigo-200 p-4">
+          <div className="max-w-2xl mx-auto">
+            <div className="bg-white rounded-2xl p-6 shadow-lg">
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-bold text-cyan-600">🪥 Brush Teeth</h2>
+                <button onClick={() => setBedtimeStep(1)}
+                  className="bg-gray-500 text-white px-4 py-2 rounded-lg font-semibold hover:bg-gray-600">
+                  ← Back
+                </button>
+              </div>
+              
+              <div className="text-center mb-6">
+                <div className="text-6xl mb-4 animate-pulse">🪥</div>
+                <p className="text-lg text-gray-700 mb-4">Help {gameData.pet.name} brush their teeth</p>
+                <div className="w-full bg-gray-200 rounded-full h-4 mb-4">
+                  <div className="bg-gradient-to-r from-cyan-400 to-blue-500 h-4 rounded-full transition-all"
+                    style={{ width: `${teethBrushingProgress}%` }}></div>
+                </div>
+                <p className="text-sm text-gray-600">{Math.round(teethBrushingProgress)}% done</p>
+                <p className="text-xs text-gray-500 mt-2">Brush up and down, back and forth! ✨</p>
+              </div>
+              
+              <div className="text-center">
+                <button
+                  onClick={() => {
+                    const newProgress = Math.min(100, teethBrushingProgress + 20);
+                    setTeethBrushingProgress(newProgress);
+                    
+                    if (newProgress >= 100) {
+                      setBedtimeStep(3);
+                      setBedtimeStory(bedtimeStories[Math.floor(Math.random() * bedtimeStories.length)]);
+                    }
+                  }}
+                  className="bg-gradient-to-r from-cyan-400 to-blue-500 text-white px-8 py-4 rounded-xl font-semibold hover:shadow-lg transition-all text-lg active:scale-95"
+                >
+                  {teethBrushingProgress < 100 ? '🪥 Brush Teeth' : '✅ Done!'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    
+    // Step 3: Read bedtime story (original step 1)
+    if (bedtimeStep === 3) {
       return (
         <div className="min-h-screen bg-gradient-to-br from-indigo-200 via-purple-200 to-blue-200 p-4">
           <div className="max-w-2xl mx-auto">
@@ -2367,11 +2463,13 @@ const BondPetGame = () => {
               </div>
               
               <button
-                onClick={() => setBedtimeStep(2)}
+                onClick={() => {
+                  setBedtimeStep(4);
+                }}
                 className="w-full bg-gradient-to-r from-indigo-400 to-purple-500 text-white py-4 rounded-xl font-semibold hover:shadow-lg transition-all text-lg active:scale-95"
               >
                 Story Finished ➡️
-            </button>
+              </button>
             </div>
           </div>
         </div>
@@ -2385,14 +2483,14 @@ const BondPetGame = () => {
             <div className="bg-white rounded-2xl p-6 shadow-lg">
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-2xl font-bold text-indigo-600">🌙 Tuck {gameData.pet.name} In</h2>
-                <button onClick={() => setBedtimeStep(1)}
+                <button onClick={() => setBedtimeStep(3)}
                   className="bg-gray-500 text-white px-4 py-2 rounded-lg font-semibold hover:bg-gray-600">
                   ← Back
-            </button>
+                </button>
               </div>
               
               <div className="text-center mb-6">
-                <div className="text-6xl mb-4">😴</div>
+                <div className="text-6xl mb-4 animate-pulse">😴</div>
                 <p className="text-lg text-gray-700 mb-4">Tuck {gameData.pet.name} in and say goodnight</p>
                 <div className="bg-indigo-50 rounded-lg p-4 mb-4">
                   <p className="text-gray-700">💤 {gameData.pet.name} is getting sleepy...</p>
@@ -2400,8 +2498,8 @@ const BondPetGame = () => {
               </div>
               
               <button
-                onClick={() => {
-                  setBedtimeStep(3);
+                  onClick={() => {
+                  setBedtimeStep(5);
                   setGameData(prev => {
                     return {
                       ...prev,
@@ -2440,6 +2538,8 @@ const BondPetGame = () => {
                 onClick={() => {
                   setBedtimeStep(0);
                   setBedtimeStory('');
+                  setPajamasProgress(0);
+                  setTeethBrushingProgress(0);
                   setGameState('pet');
                 }}
                 className="bg-gradient-to-r from-indigo-400 to-purple-500 text-white px-8 py-4 rounded-xl font-semibold hover:shadow-lg transition-all text-lg"
