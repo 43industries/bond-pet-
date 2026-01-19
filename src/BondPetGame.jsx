@@ -8,7 +8,15 @@ const BondPetGame = () => {
   const [relationshipMode, setRelationshipMode] = useState(null);
   const [selectedPetType, setSelectedPetType] = useState(null);
   const [gameData, setGameData] = useState({
-    pet: { name: 'Buddy', type: 'dog', happiness: 50, level: 1 },
+    pet: { 
+      name: 'Buddy', 
+      type: 'dog', 
+      happiness: 50, 
+      level: 1,
+      hunger: 70, // 0-100
+      energy: 70, // 0-100
+      love: 50 // 0-100, grows through co-parenting
+    },
     inventory: [],
     coins: 0,
     conversationsCompleted: 0,
@@ -17,7 +25,9 @@ const BondPetGame = () => {
     unlockedPets: ['dog'],
     gamesWon: 0,
     bibleVerses: [],
-    conversationHistory: [] // Track conversation topics/questions
+    conversationHistory: [], // Track conversation topics/questions
+    careHistory: [], // Track who cared for the pet and when
+    lastCareAction: null // Track last action taken
   });
 
   const petTypes = [
@@ -991,12 +1001,42 @@ const BondPetGame = () => {
 
   const getPetMessage = () => {
     const msgs = {
-      friends: ["Let's go on an adventure! 🎮", "You two are awesome!", "Pizza time? 🍕", "Squad goals! ✨"],
-      couples: ["You two are adorable! 💕", "Love is in the air! 🌹", "Date night ideas? ✨", "Someone's thinking of you 💝"],
-      family: ["Family time is the best! 🏠", "I'm proud of you! ⭐", "Let's make memories! 📷", "Home sweet home! 💛"]
+      friends: [
+        "You two make me so happy! 💕", 
+        "I'm the fruit of your amazing friendship! 🌟", 
+        "Your bond makes me stronger! 💪",
+        "I love watching you two together! 💖"
+      ],
+      couples: [
+        "I'm the fruit of your love! 💕", 
+        "Your love makes me blossom! 🌸", 
+        "I feel your connection growing stronger! ✨",
+        "Every conversation makes me happier! 💖",
+        "Take care of me together, and we'll all grow! 🌱"
+      ]
     };
-    return msgs[relationshipMode]?.[Math.floor(Math.random() * 4)] || msgs.friends[0];
+    const relationshipMsgs = msgs[relationshipMode] || msgs.friends;
+    return relationshipMsgs[Math.floor(Math.random() * relationshipMsgs.length)];
   };
+
+  // Sync pet love with relationship progress
+  useEffect(() => {
+    setGameData(prev => {
+      // Pet's love should reflect relationship progress
+      const targetLove = Math.max(prev.pet.love, prev.relationshipProgress);
+      if (targetLove > prev.pet.love) {
+        return {
+          ...prev,
+          pet: {
+            ...prev.pet,
+            love: Math.min(100, targetLove),
+            happiness: Math.min(100, prev.pet.happiness + 1)
+          }
+        };
+      }
+      return prev;
+    });
+  }, [gameData.relationshipProgress]);
 
   // Tetris functions (needed by hooks below)
   const createNewTetrisPiece = () => {
@@ -1498,14 +1538,132 @@ const BondPetGame = () => {
             <div className="text-center">
               <div className="text-6xl mb-2">{getPetMood()}</div>
               <h3 className="text-xl font-bold text-gray-800 mb-2">{gameData.pet.name}</h3>
-              <p className="text-gray-600 italic">"{getPetMessage()}"</p>
+              <p className="text-sm text-purple-600 font-semibold mb-2">✨ The Fruit of Your Love ✨</p>
+              <p className="text-gray-600 italic mb-4">"{getPetMessage()}"</p>
+              
+              {/* Pet Needs - Co-Parenting Focus */}
+              <div className="grid grid-cols-3 gap-2 mt-4">
+                <div className="bg-pink-50 rounded-lg p-2">
+                  <div className="text-xs font-semibold text-gray-700 mb-1">🍽️ Hunger</div>
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div className="bg-gradient-to-r from-orange-400 to-red-500 h-2 rounded-full transition-all"
+                      style={{ width: `${gameData.pet.hunger}%` }}></div>
+                  </div>
+                </div>
+                <div className="bg-blue-50 rounded-lg p-2">
+                  <div className="text-xs font-semibold text-gray-700 mb-1">⚡ Energy</div>
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div className="bg-gradient-to-r from-blue-400 to-cyan-500 h-2 rounded-full transition-all"
+                      style={{ width: `${gameData.pet.energy}%` }}></div>
+                  </div>
+                </div>
+                <div className="bg-purple-50 rounded-lg p-2">
+                  <div className="text-xs font-semibold text-gray-700 mb-1">💕 Love</div>
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div className="bg-gradient-to-r from-pink-400 to-purple-500 h-2 rounded-full transition-all"
+                      style={{ width: `${gameData.pet.love}%` }}></div>
+                  </div>
+                </div>
+              </div>
             </div>
+          </div>
+
+          {/* Co-Parenting Actions */}
+          <div className="bg-white rounded-2xl p-6 mb-4 shadow-lg border-2 border-purple-300">
+            <h3 className="text-xl font-bold text-center mb-4 text-purple-600">
+              💕 Care for {gameData.pet.name} Together
+            </h3>
+            <p className="text-sm text-gray-600 text-center mb-4">
+              Taking care of {gameData.pet.name} together strengthens your bond
+            </p>
+            <div className="grid grid-cols-3 gap-3">
+              <button
+                onClick={() => {
+                  setGameData(prev => {
+                    const newHunger = Math.min(100, prev.pet.hunger + 20);
+                    const newLove = Math.min(100, prev.pet.love + 3);
+                    const newProgress = Math.min(100, prev.relationshipProgress + 2);
+                    return {
+                      ...prev,
+                      pet: {
+                        ...prev.pet,
+                        hunger: newHunger,
+                        love: newLove,
+                        happiness: Math.min(100, prev.pet.happiness + 2)
+                      },
+                      relationshipProgress: newProgress,
+                      careHistory: [...prev.careHistory, { action: 'feed', player: currentPlayer, time: new Date() }],
+                      lastCareAction: { action: 'feed', player: currentPlayer }
+                    };
+                  });
+                }}
+                className="bg-gradient-to-r from-orange-400 to-red-500 text-white py-4 rounded-xl font-semibold hover:shadow-lg transition-all active:scale-95"
+              >
+                <div className="text-2xl mb-1">🍽️</div>
+                <div className="text-sm">Feed</div>
+              </button>
+              <button
+                onClick={() => {
+                  setGameData(prev => {
+                    const newEnergy = Math.min(100, prev.pet.energy + 20);
+                    const newLove = Math.min(100, prev.pet.love + 3);
+                    const newProgress = Math.min(100, prev.relationshipProgress + 2);
+                    return {
+                      ...prev,
+                      pet: {
+                        ...prev.pet,
+                        energy: newEnergy,
+                        love: newLove,
+                        happiness: Math.min(100, prev.pet.happiness + 2)
+                      },
+                      relationshipProgress: newProgress,
+                      careHistory: [...prev.careHistory, { action: 'play', player: currentPlayer, time: new Date() }],
+                      lastCareAction: { action: 'play', player: currentPlayer }
+                    };
+                  });
+                }}
+                className="bg-gradient-to-r from-blue-400 to-cyan-500 text-white py-4 rounded-xl font-semibold hover:shadow-lg transition-all active:scale-95"
+              >
+                <div className="text-2xl mb-1">⚽</div>
+                <div className="text-sm">Play</div>
+              </button>
+              <button
+                onClick={() => {
+                  setGameData(prev => {
+                    const newLove = Math.min(100, prev.pet.love + 15);
+                    const newHappiness = Math.min(100, prev.pet.happiness + 5);
+                    const newProgress = Math.min(100, prev.relationshipProgress + 3);
+                    return {
+                      ...prev,
+                      pet: {
+                        ...prev.pet,
+                        love: newLove,
+                        happiness: newHappiness
+                      },
+                      relationshipProgress: newProgress,
+                      careHistory: [...prev.careHistory, { action: 'cuddle', player: currentPlayer, time: new Date() }],
+                      lastCareAction: { action: 'cuddle', player: currentPlayer }
+                    };
+                  });
+                }}
+                className="bg-gradient-to-r from-pink-400 to-purple-500 text-white py-4 rounded-xl font-semibold hover:shadow-lg transition-all active:scale-95"
+              >
+                <div className="text-2xl mb-1">🤗</div>
+                <div className="text-sm">Cuddle</div>
+              </button>
+            </div>
+            {gameData.lastCareAction && (
+              <p className="text-xs text-center text-gray-500 mt-3">
+                {gameData.lastCareAction.player} just {gameData.lastCareAction.action === 'feed' ? 'fed' : gameData.lastCareAction.action === 'play' ? 'played with' : 'cuddled'} {gameData.pet.name} 💕
+              </p>
+            )}
           </div>
 
           {/* Primary Action - Conversations */}
           <div className="bg-gradient-to-r from-pink-500 to-purple-500 rounded-2xl p-6 mb-4 shadow-lg text-white">
             <h3 className="text-2xl font-bold mb-2 text-center">💬 Start a Conversation</h3>
             <p className="text-center mb-4 opacity-90">Build your bond through meaningful conversations</p>
+            <p className="text-center mb-4 text-xs opacity-75">As you grow closer, {gameData.pet.name} grows stronger 💕</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <button 
                 onClick={() => {
@@ -2416,6 +2574,10 @@ const BondPetGame = () => {
             ...prev,
             conversationsCompleted: prev.conversationsCompleted + 1,
             relationshipProgress: Math.min(100, prev.relationshipProgress + 1),
+            pet: {
+              ...prev.pet,
+              love: Math.min(100, prev.pet.love + 1) // Pet grows from conversations
+            },
             conversationHistory: [...prev.conversationHistory, { type: 'neverHaveIEver', date: new Date() }]
           }));
         }
@@ -2497,7 +2659,7 @@ const BondPetGame = () => {
       setRelationshipExplorerIndex(prev => {
         const newIndex = (prev + 1) % questions.length;
         if (newIndex === 0) {
-          // Completed a round - update relationship progress
+          // Completed a round - update relationship progress and pet
           setGameData(prev => {
             const newProgress = Math.min(100, prev.relationshipProgress + 8);
             const newBondLevel = Math.floor(newProgress / 20) + 1;
@@ -2507,7 +2669,11 @@ const BondPetGame = () => {
               conversationsCompleted: prev.conversationsCompleted + 1,
               relationshipProgress: newProgress,
               bondLevel: newBondLevel,
-              pet: { ...prev.pet, happiness: Math.min(100, prev.pet.happiness + 8) },
+              pet: { 
+                ...prev.pet, 
+                happiness: Math.min(100, prev.pet.happiness + 8),
+                love: Math.min(100, prev.pet.love + 5) // Pet grows from deep conversations
+              },
               conversationHistory: [...prev.conversationHistory, { type: 'relationshipExplorer', date: new Date() }]
             };
           });
@@ -2521,6 +2687,10 @@ const BondPetGame = () => {
               conversationsCompleted: prev.conversationsCompleted + 1,
               relationshipProgress: newProgress,
               bondLevel: newBondLevel,
+              pet: {
+                ...prev.pet,
+                love: Math.min(100, prev.pet.love + 2) // Pet grows from deep conversations
+              },
               conversationHistory: [...prev.conversationHistory, { type: 'relationshipExplorer', date: new Date() }]
             };
           });
