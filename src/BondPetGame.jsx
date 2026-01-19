@@ -15,7 +15,11 @@ const BondPetGame = () => {
       level: 1,
       hunger: 70, // 0-100
       energy: 70, // 0-100
-      love: 50 // 0-100, grows through co-parenting
+      love: 50, // 0-100, grows through co-parenting
+      cleanliness: 70, // 0-100, needs showering
+      sleepiness: 50, // 0-100, needs bedtime
+      learning: 30, // 0-100, grows through teaching
+      isSleeping: false // Whether pet is currently sleeping
     },
     inventory: [],
     coins: 0,
@@ -965,10 +969,21 @@ const BondPetGame = () => {
   }, [gameData.coins, gameData.puzzlesCompleted, gameData.sharedProgress, gameData.gamesWon]);
 
   const getPetMood = () => {
+    if (gameData.pet.isSleeping) return '😴';
+    
     const petType = petTypes.find(p => p.id === gameData.pet.type) || petTypes[0];
     const h = gameData.pet.happiness;
+    const needsMet = gameData.pet.hunger > 40 && gameData.pet.cleanliness > 40 && gameData.pet.sleepiness < 60;
     
-    if (h > 80) {
+    if (!needsMet) {
+      // Baby needs attention
+      if (gameData.pet.hunger < 30) return '😢'; // Hungry
+      if (gameData.pet.cleanliness < 30) return '😟'; // Dirty
+      if (gameData.pet.sleepiness > 80) return '😴'; // Tired
+      return '😔'; // General needs
+    }
+    
+    if (h > 80 && gameData.pet.love > 70) {
       if (relationshipMode === 'couples') return '🥰';
       return petType.excited;
     }
@@ -1037,6 +1052,53 @@ const BondPetGame = () => {
       return prev;
     });
   }, [gameData.relationshipProgress]);
+
+  // Pet needs decrease over time (like real babies)
+  useEffect(() => {
+    if (gameState !== 'pet' && gameState !== 'welcome') return;
+    
+    const interval = setInterval(() => {
+      setGameData(prev => {
+        if (prev.pet.isSleeping) {
+          // While sleeping, only sleepiness decreases, other needs decrease slower
+          return {
+            ...prev,
+            pet: {
+              ...prev.pet,
+              sleepiness: Math.max(0, prev.pet.sleepiness - 2),
+              hunger: Math.max(0, prev.pet.hunger - 0.5),
+              cleanliness: Math.max(0, prev.pet.cleanliness - 0.3),
+              energy: Math.min(100, prev.pet.energy + 1)
+            }
+          };
+        } else {
+          // While awake, needs decrease gradually
+          const newHunger = Math.max(0, prev.pet.hunger - 0.5);
+          const newSleepiness = Math.min(100, prev.pet.sleepiness + 0.8);
+          const newCleanliness = Math.max(0, prev.pet.cleanliness - 0.5);
+          const newEnergy = Math.max(0, prev.pet.energy - 0.3);
+          
+          // Calculate happiness based on needs
+          const avgNeeds = (newHunger + newCleanliness + (100 - newSleepiness)) / 3;
+          const newHappiness = Math.max(0, Math.min(100, avgNeeds * 0.7 + prev.pet.love * 0.3));
+          
+          return {
+            ...prev,
+            pet: {
+              ...prev.pet,
+              hunger: newHunger,
+              sleepiness: newSleepiness,
+              cleanliness: newCleanliness,
+              energy: newEnergy,
+              happiness: newHappiness
+            }
+          };
+        }
+      });
+    }, 60000); // Update every minute
+    
+    return () => clearInterval(interval);
+  }, [gameState]);
 
   // Tetris functions (needed by hooks below)
   const createNewTetrisPiece = () => {
@@ -1541,123 +1603,220 @@ const BondPetGame = () => {
               <p className="text-sm text-purple-600 font-semibold mb-2">✨ The Fruit of Your Love ✨</p>
               <p className="text-gray-600 italic mb-4">"{getPetMessage()}"</p>
               
-              {/* Pet Needs - Co-Parenting Focus */}
-              <div className="grid grid-cols-3 gap-2 mt-4">
-                <div className="bg-pink-50 rounded-lg p-2">
-                  <div className="text-xs font-semibold text-gray-700 mb-1">🍽️ Hunger</div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div className="bg-gradient-to-r from-orange-400 to-red-500 h-2 rounded-full transition-all"
-                      style={{ width: `${gameData.pet.hunger}%` }}></div>
+              {/* Pet Needs - Baby Care Stats */}
+              {gameData.pet.isSleeping ? (
+                <div className="bg-indigo-100 rounded-lg p-4 mt-4 text-center">
+                  <div className="text-4xl mb-2">😴</div>
+                  <p className="text-indigo-700 font-semibold">{gameData.pet.name} is sleeping peacefully...</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-4">
+                  <div className="bg-pink-50 rounded-lg p-2">
+                    <div className="text-xs font-semibold text-gray-700 mb-1">🍽️ Hunger</div>
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div className="bg-gradient-to-r from-orange-400 to-red-500 h-2 rounded-full transition-all"
+                        style={{ width: `${gameData.pet.hunger}%` }}></div>
+                    </div>
+                  </div>
+                  <div className="bg-blue-50 rounded-lg p-2">
+                    <div className="text-xs font-semibold text-gray-700 mb-1">😴 Sleepy</div>
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div className="bg-gradient-to-r from-blue-400 to-indigo-500 h-2 rounded-full transition-all"
+                        style={{ width: `${gameData.pet.sleepiness}%` }}></div>
+                    </div>
+                  </div>
+                  <div className="bg-cyan-50 rounded-lg p-2">
+                    <div className="text-xs font-semibold text-gray-700 mb-1">🧼 Clean</div>
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div className="bg-gradient-to-r from-cyan-400 to-blue-500 h-2 rounded-full transition-all"
+                        style={{ width: `${gameData.pet.cleanliness}%` }}></div>
+                    </div>
+                  </div>
+                  <div className="bg-yellow-50 rounded-lg p-2">
+                    <div className="text-xs font-semibold text-gray-700 mb-1">📚 Learning</div>
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div className="bg-gradient-to-r from-yellow-400 to-orange-500 h-2 rounded-full transition-all"
+                        style={{ width: `${gameData.pet.learning}%` }}></div>
+                    </div>
+                  </div>
+                  <div className="bg-green-50 rounded-lg p-2">
+                    <div className="text-xs font-semibold text-gray-700 mb-1">⚡ Energy</div>
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div className="bg-gradient-to-r from-green-400 to-emerald-500 h-2 rounded-full transition-all"
+                        style={{ width: `${gameData.pet.energy}%` }}></div>
+                    </div>
+                  </div>
+                  <div className="bg-purple-50 rounded-lg p-2">
+                    <div className="text-xs font-semibold text-gray-700 mb-1">💕 Love</div>
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div className="bg-gradient-to-r from-pink-400 to-purple-500 h-2 rounded-full transition-all"
+                        style={{ width: `${gameData.pet.love}%` }}></div>
+                    </div>
                   </div>
                 </div>
-                <div className="bg-blue-50 rounded-lg p-2">
-                  <div className="text-xs font-semibold text-gray-700 mb-1">⚡ Energy</div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div className="bg-gradient-to-r from-blue-400 to-cyan-500 h-2 rounded-full transition-all"
-                      style={{ width: `${gameData.pet.energy}%` }}></div>
-                  </div>
-                </div>
-                <div className="bg-purple-50 rounded-lg p-2">
-                  <div className="text-xs font-semibold text-gray-700 mb-1">💕 Love</div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div className="bg-gradient-to-r from-pink-400 to-purple-500 h-2 rounded-full transition-all"
-                      style={{ width: `${gameData.pet.love}%` }}></div>
-                  </div>
-                </div>
-              </div>
+              )}
             </div>
           </div>
 
-          {/* Co-Parenting Actions */}
-          <div className="bg-white rounded-2xl p-6 mb-4 shadow-lg border-2 border-purple-300">
-            <h3 className="text-xl font-bold text-center mb-4 text-purple-600">
-              💕 Care for {gameData.pet.name} Together
-            </h3>
-            <p className="text-sm text-gray-600 text-center mb-4">
-              Taking care of {gameData.pet.name} together strengthens your bond
-            </p>
-            <div className="grid grid-cols-3 gap-3">
-              <button
-                onClick={() => {
-                  setGameData(prev => {
-                    const newHunger = Math.min(100, prev.pet.hunger + 20);
-                    const newLove = Math.min(100, prev.pet.love + 3);
-                    const newProgress = Math.min(100, prev.relationshipProgress + 2);
-                    return {
-                      ...prev,
-                      pet: {
-                        ...prev.pet,
-                        hunger: newHunger,
-                        love: newLove,
-                        happiness: Math.min(100, prev.pet.happiness + 2)
-                      },
-                      relationshipProgress: newProgress,
-                      careHistory: [...prev.careHistory, { action: 'feed', player: currentPlayer, time: new Date() }],
-                      lastCareAction: { action: 'feed', player: currentPlayer }
-                    };
-                  });
-                }}
-                className="bg-gradient-to-r from-orange-400 to-red-500 text-white py-4 rounded-xl font-semibold hover:shadow-lg transition-all active:scale-95"
-              >
-                <div className="text-2xl mb-1">🍽️</div>
-                <div className="text-sm">Feed</div>
-              </button>
-              <button
-                onClick={() => {
-                  setGameData(prev => {
-                    const newEnergy = Math.min(100, prev.pet.energy + 20);
-                    const newLove = Math.min(100, prev.pet.love + 3);
-                    const newProgress = Math.min(100, prev.relationshipProgress + 2);
-                    return {
-                      ...prev,
-                      pet: {
-                        ...prev.pet,
-                        energy: newEnergy,
-                        love: newLove,
-                        happiness: Math.min(100, prev.pet.happiness + 2)
-                      },
-                      relationshipProgress: newProgress,
-                      careHistory: [...prev.careHistory, { action: 'play', player: currentPlayer, time: new Date() }],
-                      lastCareAction: { action: 'play', player: currentPlayer }
-                    };
-                  });
-                }}
-                className="bg-gradient-to-r from-blue-400 to-cyan-500 text-white py-4 rounded-xl font-semibold hover:shadow-lg transition-all active:scale-95"
-              >
-                <div className="text-2xl mb-1">⚽</div>
-                <div className="text-sm">Play</div>
-              </button>
-              <button
-                onClick={() => {
-                  setGameData(prev => {
-                    const newLove = Math.min(100, prev.pet.love + 15);
-                    const newHappiness = Math.min(100, prev.pet.happiness + 5);
-                    const newProgress = Math.min(100, prev.relationshipProgress + 3);
-                    return {
-                      ...prev,
-                      pet: {
-                        ...prev.pet,
-                        love: newLove,
-                        happiness: newHappiness
-                      },
-                      relationshipProgress: newProgress,
-                      careHistory: [...prev.careHistory, { action: 'cuddle', player: currentPlayer, time: new Date() }],
-                      lastCareAction: { action: 'cuddle', player: currentPlayer }
-                    };
-                  });
-                }}
-                className="bg-gradient-to-r from-pink-400 to-purple-500 text-white py-4 rounded-xl font-semibold hover:shadow-lg transition-all active:scale-95"
-              >
-                <div className="text-2xl mb-1">🤗</div>
-                <div className="text-sm">Cuddle</div>
-              </button>
+          {/* Co-Parenting Actions - Baby Care */}
+          {gameData.pet.isSleeping ? (
+            <div className="bg-white rounded-2xl p-6 mb-4 shadow-lg border-2 border-indigo-300">
+              <div className="text-center">
+                <div className="text-5xl mb-3">😴</div>
+                <h3 className="text-xl font-bold mb-2 text-indigo-600">{gameData.pet.name} is Sleeping</h3>
+                <p className="text-gray-600 mb-4">Your little one is resting peacefully...</p>
+                <button
+                  onClick={() => {
+                    setGameData(prev => {
+                      const hoursSlept = 8; // Simulate full sleep
+                      return {
+                        ...prev,
+                        pet: {
+                          ...prev.pet,
+                          isSleeping: false,
+                          energy: Math.min(100, prev.pet.energy + 30),
+                          sleepiness: Math.max(0, prev.pet.sleepiness - 50),
+                          hunger: Math.max(0, prev.pet.hunger - 10), // Gets hungry after sleep
+                          happiness: Math.min(100, prev.pet.happiness + 5)
+                        },
+                        relationshipProgress: Math.min(100, prev.relationshipProgress + 3),
+                        careHistory: [...prev.careHistory, { action: 'wake', player: currentPlayer, time: new Date() }],
+                        lastCareAction: { action: 'wake', player: currentPlayer }
+                      };
+                    });
+                  }}
+                  className="bg-gradient-to-r from-indigo-400 to-purple-500 text-white px-6 py-3 rounded-xl font-semibold hover:shadow-lg transition-all"
+                >
+                  Wake {gameData.pet.name} Up ☀️
+                </button>
+              </div>
             </div>
-            {gameData.lastCareAction && (
-              <p className="text-xs text-center text-gray-500 mt-3">
-                {gameData.lastCareAction.player} just {gameData.lastCareAction.action === 'feed' ? 'fed' : gameData.lastCareAction.action === 'play' ? 'played with' : 'cuddled'} {gameData.pet.name} 💕
+          ) : (
+            <div className="bg-white rounded-2xl p-6 mb-4 shadow-lg border-2 border-purple-300">
+              <h3 className="text-xl font-bold text-center mb-4 text-purple-600">
+                💕 Care for {gameData.pet.name} Together
+              </h3>
+              <p className="text-sm text-gray-600 text-center mb-4">
+                Taking care of your little one together strengthens your bond
               </p>
-            )}
-          </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <button
+                  onClick={() => {
+                    setGameData(prev => {
+                      const newHunger = Math.min(100, prev.pet.hunger + 25);
+                      const newLove = Math.min(100, prev.pet.love + 3);
+                      const newProgress = Math.min(100, prev.relationshipProgress + 2);
+                      return {
+                        ...prev,
+                        pet: {
+                          ...prev.pet,
+                          hunger: newHunger,
+                          love: newLove,
+                          happiness: Math.min(100, prev.pet.happiness + 3),
+                          energy: Math.min(100, prev.pet.energy + 5)
+                        },
+                        relationshipProgress: newProgress,
+                        careHistory: [...prev.careHistory, { action: 'feed', player: currentPlayer, time: new Date() }],
+                        lastCareAction: { action: 'feed', player: currentPlayer }
+                      };
+                    });
+                  }}
+                  className="bg-gradient-to-r from-orange-400 to-red-500 text-white py-4 rounded-xl font-semibold hover:shadow-lg transition-all active:scale-95"
+                >
+                  <div className="text-3xl mb-1">🍽️</div>
+                  <div className="text-sm font-semibold">Feed</div>
+                </button>
+                
+                <button
+                  onClick={() => {
+                    setGameData(prev => {
+                      return {
+                        ...prev,
+                        pet: {
+                          ...prev.pet,
+                          isSleeping: true,
+                          sleepiness: Math.max(0, prev.pet.sleepiness - 40),
+                          love: Math.min(100, prev.pet.love + 5)
+                        },
+                        relationshipProgress: Math.min(100, prev.relationshipProgress + 3),
+                        careHistory: [...prev.careHistory, { action: 'bedtime', player: currentPlayer, time: new Date() }],
+                        lastCareAction: { action: 'bedtime', player: currentPlayer }
+                      };
+                    });
+                  }}
+                  className="bg-gradient-to-r from-indigo-400 to-purple-500 text-white py-4 rounded-xl font-semibold hover:shadow-lg transition-all active:scale-95"
+                >
+                  <div className="text-3xl mb-1">🛏️</div>
+                  <div className="text-sm font-semibold">Put to Bed</div>
+                </button>
+                
+                <button
+                  onClick={() => {
+                    setGameData(prev => {
+                      const newLearning = Math.min(100, prev.pet.learning + 15);
+                      const newLove = Math.min(100, prev.pet.love + 4);
+                      const newProgress = Math.min(100, prev.relationshipProgress + 3);
+                      return {
+                        ...prev,
+                        pet: {
+                          ...prev.pet,
+                          learning: newLearning,
+                          love: newLove,
+                          happiness: Math.min(100, prev.pet.happiness + 4),
+                          energy: Math.max(0, prev.pet.energy - 5) // Learning can be tiring
+                        },
+                        relationshipProgress: newProgress,
+                        careHistory: [...prev.careHistory, { action: 'teach', player: currentPlayer, time: new Date() }],
+                        lastCareAction: { action: 'teach', player: currentPlayer }
+                      };
+                    });
+                  }}
+                  className="bg-gradient-to-r from-yellow-400 to-orange-500 text-white py-4 rounded-xl font-semibold hover:shadow-lg transition-all active:scale-95"
+                >
+                  <div className="text-3xl mb-1">📚</div>
+                  <div className="text-sm font-semibold">Teach</div>
+                </button>
+                
+                <button
+                  onClick={() => {
+                    setGameData(prev => {
+                      const newCleanliness = Math.min(100, prev.pet.cleanliness + 30);
+                      const newLove = Math.min(100, prev.pet.love + 3);
+                      const newProgress = Math.min(100, prev.relationshipProgress + 2);
+                      return {
+                        ...prev,
+                        pet: {
+                          ...prev.pet,
+                          cleanliness: newCleanliness,
+                          love: newLove,
+                          happiness: Math.min(100, prev.pet.happiness + 3),
+                          energy: Math.min(100, prev.pet.energy + 5) // Bath time is refreshing
+                        },
+                        relationshipProgress: newProgress,
+                        careHistory: [...prev.careHistory, { action: 'shower', player: currentPlayer, time: new Date() }],
+                        lastCareAction: { action: 'shower', player: currentPlayer }
+                      };
+                    });
+                  }}
+                  className="bg-gradient-to-r from-cyan-400 to-blue-500 text-white py-4 rounded-xl font-semibold hover:shadow-lg transition-all active:scale-95"
+                >
+                  <div className="text-3xl mb-1">🚿</div>
+                  <div className="text-sm font-semibold">Shower</div>
+                </button>
+              </div>
+              {gameData.lastCareAction && (
+                <p className="text-xs text-center text-gray-500 mt-3">
+                  {gameData.lastCareAction.player} just {
+                    gameData.lastCareAction.action === 'feed' ? 'fed' : 
+                    gameData.lastCareAction.action === 'bedtime' ? 'put' : 
+                    gameData.lastCareAction.action === 'teach' ? 'taught' : 
+                    gameData.lastCareAction.action === 'shower' ? 'bathed' : 
+                    'cared for'
+                  } {gameData.pet.name} 💕
+                </p>
+              )}
+            </div>
+          )}
 
           {/* Primary Action - Conversations */}
           <div className="bg-gradient-to-r from-pink-500 to-purple-500 rounded-2xl p-6 mb-4 shadow-lg text-white">
