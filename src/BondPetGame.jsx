@@ -945,34 +945,34 @@ const BondPetGame = () => {
 
   useEffect(() => {
     setGameData(prev => {
-      const newlyUnlocked = [];
-      petTypes.forEach(pet => {
+    const newlyUnlocked = [];
+    petTypes.forEach(pet => {
         if (prev.unlockedPets.includes(pet.id)) return;
-        
-        let shouldUnlock = false;
-        if (pet.unlockCondition.toLowerCase().includes('coins')) {
-          const coinsNeeded = parseInt(pet.unlockCondition.match(/\d+/)?.[0] || '0');
-          if (prev.coins >= coinsNeeded) shouldUnlock = true;
-        } else if (pet.unlockCondition.toLowerCase().includes('puzzles') || pet.unlockCondition.toLowerCase().includes('complete')) {
-          const puzzlesNeeded = parseInt(pet.unlockCondition.match(/\d+/)?.[0] || '0');
-          if (prev.puzzlesCompleted >= puzzlesNeeded) shouldUnlock = true;
-        } else if (pet.unlockCondition.toLowerCase().includes('shared progress') || pet.unlockCondition.toLowerCase().includes('reach')) {
-          const progressNeeded = parseInt(pet.unlockCondition.match(/\d+/)?.[0] || '0');
-          if (prev.sharedProgress >= progressNeeded) shouldUnlock = true;
-        } else if (pet.unlockCondition.toLowerCase().includes('games') || pet.unlockCondition.toLowerCase().includes('win')) {
-          const gamesNeeded = parseInt(pet.unlockCondition.match(/\d+/)?.[0] || '0');
-          if (prev.gamesWon >= gamesNeeded) shouldUnlock = true;
-        }
-        
-        if (shouldUnlock && !prev.unlockedPets.includes(pet.id)) {
-          newlyUnlocked.push(pet.id);
-        }
-      });
       
-      if (newlyUnlocked.length > 0) {
+      let shouldUnlock = false;
+      if (pet.unlockCondition.toLowerCase().includes('coins')) {
+        const coinsNeeded = parseInt(pet.unlockCondition.match(/\d+/)?.[0] || '0');
+          if (prev.coins >= coinsNeeded) shouldUnlock = true;
+      } else if (pet.unlockCondition.toLowerCase().includes('puzzles') || pet.unlockCondition.toLowerCase().includes('complete')) {
+        const puzzlesNeeded = parseInt(pet.unlockCondition.match(/\d+/)?.[0] || '0');
+          if (prev.puzzlesCompleted >= puzzlesNeeded) shouldUnlock = true;
+      } else if (pet.unlockCondition.toLowerCase().includes('shared progress') || pet.unlockCondition.toLowerCase().includes('reach')) {
+        const progressNeeded = parseInt(pet.unlockCondition.match(/\d+/)?.[0] || '0');
+          if (prev.sharedProgress >= progressNeeded) shouldUnlock = true;
+      } else if (pet.unlockCondition.toLowerCase().includes('games') || pet.unlockCondition.toLowerCase().includes('win')) {
+        const gamesNeeded = parseInt(pet.unlockCondition.match(/\d+/)?.[0] || '0');
+          if (prev.gamesWon >= gamesNeeded) shouldUnlock = true;
+      }
+      
+        if (shouldUnlock && !prev.unlockedPets.includes(pet.id)) {
+        newlyUnlocked.push(pet.id);
+      }
+    });
+    
+    if (newlyUnlocked.length > 0) {
         return {
-          ...prev,
-          unlockedPets: [...prev.unlockedPets, ...newlyUnlocked]
+        ...prev,
+        unlockedPets: [...prev.unlockedPets, ...newlyUnlocked]
         };
       }
       return prev;
@@ -1636,7 +1636,7 @@ const BondPetGame = () => {
                 {gameData.pet.energy > 50 && <span className="text-2xl" title="Energetic">⚡</span>}
                 {gameData.pet.learning > 30 && <span className="text-2xl" title="Learning">📚</span>}
                 {gameData.pet.love > 70 && <span className="text-2xl" title="Loved">💖</span>}
-              </div>
+                </div>
               
               {/* Pet Needs - Baby Care Stats */}
               {gameData.pet.isSleeping ? (
@@ -1690,8 +1690,8 @@ const BondPetGame = () => {
                   </div>
                 </div>
               )}
-            </div>
-          </div>
+                </div>
+              </div>
 
           {/* Co-Parenting Actions - Baby Care */}
           {gameData.pet.isSleeping ? (
@@ -1724,17 +1724,49 @@ const BondPetGame = () => {
                 >
                   Wake {gameData.pet.name} Up ☀️
                 </button>
-              </div>
+                </div>
             </div>
           ) : (
-            <div className="bg-white rounded-2xl p-6 mb-4 shadow-lg border-2 border-purple-300">
-              <h3 className="text-xl font-bold text-center mb-4 text-purple-600">
-                💕 Care for {gameData.pet.name} Together
-              </h3>
-              <p className="text-sm text-gray-600 text-center mb-4">
-                Taking care of your little one together strengthens your bond
-              </p>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <>
+              {/* Food Inventory Quick View */}
+              <div className="bg-white rounded-2xl p-4 mb-4 shadow-lg">
+                <div className="flex justify-between items-center flex-wrap gap-3">
+                  <div>
+                    <h4 className="font-semibold text-gray-700 mb-2">🛒 Food Inventory</h4>
+                    <div className="flex gap-2 flex-wrap">
+                      {Object.entries(gameData.foodInventory).map(([emoji, quantity]) => {
+                        if (quantity > 0) {
+                          const foodItem = foodItems.find(f => f.emoji === emoji);
+                          return (
+                            <span key={emoji} className="text-2xl" title={`${quantity}x ${foodItem?.name || emoji}`}>
+                              {emoji} <span className="text-xs text-gray-600">{quantity}</span>
+                            </span>
+                          );
+                        }
+                        return null;
+                      })}
+                      {Object.values(gameData.foodInventory).every(q => q === 0) && (
+                        <span className="text-sm text-gray-500">No food - visit shop!</span>
+                      )}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setGameState('foodShop')}
+                    className="bg-gradient-to-r from-green-400 to-emerald-500 text-white px-4 py-3 rounded-xl font-semibold hover:shadow-lg transition-all"
+                  >
+                    🛒 Buy Food
+                  </button>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-2xl p-6 mb-4 shadow-lg border-2 border-purple-300">
+                <h3 className="text-xl font-bold text-center mb-4 text-purple-600">
+                  💕 Care for {gameData.pet.name} Together
+                </h3>
+                <p className="text-sm text-gray-600 text-center mb-4">
+                  Taking care of your little one together strengthens your bond
+                </p>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <button
                   onClick={() => {
                     setFeedingStep(0);
@@ -1809,7 +1841,9 @@ const BondPetGame = () => {
                   } {gameData.pet.name} 💕
                 </p>
               )}
+              </div>
             </div>
+            </>
           )}
 
           {/* Primary Action - Conversations */}
@@ -2157,8 +2191,8 @@ const BondPetGame = () => {
                     <div className="text-5xl mb-2">{activity.icon}</div>
                     <div className="font-semibold text-lg">{activity.name}</div>
                   </button>
-                ))}
-              </div>
+                    ))}
+                  </div>
             </div>
           </div>
         </div>
@@ -2293,9 +2327,9 @@ const BondPetGame = () => {
                     <li>✅ Read a bedtime story</li>
                     <li>✅ Tuck in and say goodnight</li>
                   </ul>
-                </div>
-              </div>
-              
+            </div>
+          </div>
+
               <button
                 onClick={() => {
                   setBedtimeStep(1);
@@ -2304,7 +2338,7 @@ const BondPetGame = () => {
                 className="w-full bg-gradient-to-r from-indigo-400 to-purple-500 text-white py-4 rounded-xl font-semibold hover:shadow-lg transition-all text-lg active:scale-95"
               >
                 Start Bedtime Routine 🌙
-              </button>
+            </button>
             </div>
           </div>
         </div>
@@ -2321,7 +2355,7 @@ const BondPetGame = () => {
                 <button onClick={() => setBedtimeStep(0)}
                   className="bg-gray-500 text-white px-4 py-2 rounded-lg font-semibold hover:bg-gray-600">
                   ← Back
-                </button>
+            </button>
               </div>
               
               <div className="text-center mb-6">
@@ -2337,7 +2371,7 @@ const BondPetGame = () => {
                 className="w-full bg-gradient-to-r from-indigo-400 to-purple-500 text-white py-4 rounded-xl font-semibold hover:shadow-lg transition-all text-lg active:scale-95"
               >
                 Story Finished ➡️
-              </button>
+            </button>
             </div>
           </div>
         </div>
@@ -2354,7 +2388,7 @@ const BondPetGame = () => {
                 <button onClick={() => setBedtimeStep(1)}
                   className="bg-gray-500 text-white px-4 py-2 rounded-lg font-semibold hover:bg-gray-600">
                   ← Back
-                </button>
+            </button>
               </div>
               
               <div className="text-center mb-6">
@@ -2387,7 +2421,7 @@ const BondPetGame = () => {
                 className="w-full bg-gradient-to-r from-indigo-400 to-purple-500 text-white py-4 rounded-xl font-semibold hover:shadow-lg transition-all text-lg active:scale-95"
               >
                 💤 Say Goodnight & Tuck In
-              </button>
+            </button>
             </div>
           </div>
         </div>
@@ -2411,11 +2445,11 @@ const BondPetGame = () => {
                 className="bg-gradient-to-r from-indigo-400 to-purple-500 text-white px-8 py-4 rounded-xl font-semibold hover:shadow-lg transition-all text-lg"
               >
                 Return to Pet 💕
-              </button>
-            </div>
+            </button>
           </div>
         </div>
-      );
+      </div>
+    );
     }
   }
 
@@ -3271,8 +3305,8 @@ const BondPetGame = () => {
             const newProgress = Math.min(100, prev.relationshipProgress + 5);
             const newBondLevel = Math.floor(newProgress / 20) + 1;
             return {
-              ...prev,
-              coins: prev.coins + 20,
+            ...prev,
+            coins: prev.coins + 20,
               conversationsCompleted: prev.conversationsCompleted + 1,
               relationshipProgress: newProgress,
               bondLevel: newBondLevel,
@@ -3376,8 +3410,8 @@ const BondPetGame = () => {
             const newProgress = Math.min(100, prev.relationshipProgress + 8);
             const newBondLevel = Math.floor(newProgress / 20) + 1;
             return {
-              ...prev,
-              coins: prev.coins + 30,
+            ...prev,
+            coins: prev.coins + 30,
               conversationsCompleted: prev.conversationsCompleted + 1,
               relationshipProgress: newProgress,
               bondLevel: newBondLevel,
