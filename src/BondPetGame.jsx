@@ -2448,10 +2448,10 @@ const BondPetGame = () => {
             <div className="bg-white rounded-2xl p-6 shadow-lg">
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-2xl font-bold text-indigo-600">📖 Bedtime Story</h2>
-                <button onClick={() => setBedtimeStep(0)}
+                <button onClick={() => setBedtimeStep(2)}
                   className="bg-gray-500 text-white px-4 py-2 rounded-lg font-semibold hover:bg-gray-600">
                   ← Back
-            </button>
+                </button>
               </div>
               
               <div className="text-center mb-6">
@@ -2476,7 +2476,8 @@ const BondPetGame = () => {
       );
     }
     
-    if (bedtimeStep === 2) {
+    // Step 4: Tuck in and say goodnight
+    if (bedtimeStep === 4) {
       return (
         <div className="min-h-screen bg-gradient-to-br from-indigo-200 via-purple-200 to-blue-200 p-4">
           <div className="max-w-2xl mx-auto">
@@ -2498,7 +2499,7 @@ const BondPetGame = () => {
               </div>
               
               <button
-                  onClick={() => {
+                onClick={() => {
                   setBedtimeStep(5);
                   setGameData(prev => {
                     return {
@@ -2519,14 +2520,15 @@ const BondPetGame = () => {
                 className="w-full bg-gradient-to-r from-indigo-400 to-purple-500 text-white py-4 rounded-xl font-semibold hover:shadow-lg transition-all text-lg active:scale-95"
               >
                 💤 Say Goodnight & Tuck In
-            </button>
+              </button>
             </div>
           </div>
         </div>
       );
     }
     
-    if (bedtimeStep === 3) {
+    // Step 5: All done - pet is sleeping
+    if (bedtimeStep === 5) {
       return (
         <div className="min-h-screen bg-gradient-to-br from-indigo-200 via-purple-200 to-blue-200 p-4">
           <div className="max-w-2xl mx-auto">
