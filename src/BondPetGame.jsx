@@ -19,6 +19,12 @@ const BondPetGame = () => {
   const [bedtimeStory, setBedtimeStory] = useState('');
   const [selectedFood, setSelectedFood] = useState(null);
   const [currentWordIndex, setCurrentWordIndex] = useState(0);
+  
+  // Parent-Child bonding states
+  const [learnAboutEachOtherIndex, setLearnAboutEachOtherIndex] = useState(0);
+  const [parentTeachesIndex, setParentTeachesIndex] = useState(0);
+  const [selectedLesson, setSelectedLesson] = useState(null);
+  
   const [gameData, setGameData] = useState({
     pet: { 
       name: 'Buddy', 
@@ -375,6 +381,23 @@ const BondPetGame = () => {
       "Never have I ever been proud of a family member",
       "Never have I ever felt unloved by family",
       "Never have I ever wanted to express feelings I haven't"
+    ],
+    parentChild: [
+      "Never have I ever kept a secret from my parent/child",
+      "Never have I ever been proud of something my parent/child did",
+      "Never have I ever wanted to understand my parent/child better",
+      "Never have I ever learned something new from my parent/child",
+      "Never have I ever felt misunderstood by my parent/child",
+      "Never have I ever been surprised by something my parent/child said",
+      "Never have I ever wanted to spend more time together",
+      "Never have I ever been amazed by my parent/child's knowledge",
+      "Never have I ever wished I could teach my parent/child something",
+      "Never have I ever felt grateful for our relationship",
+      "Never have I ever wanted to share a hobby with my parent/child",
+      "Never have I ever been curious about my parent/child's interests",
+      "Never have I ever wanted to learn something together",
+      "Never have I ever felt proud to be their parent/child",
+      "Never have I ever wanted to create a special memory together"
     ]
   };
 
@@ -429,6 +452,23 @@ const BondPetGame = () => {
       "What's a hope you have for our future?",
       "What's something that brings us together?",
       "What's a way you want to support me more?"
+    ],
+    parentChild: [
+      "What's something you've always wanted to know about me?",
+      "What's a memory of us that makes you happy?",
+      "What's something I do that makes you feel loved?",
+      "What's something you want to teach me?",
+      "What's something you want to learn from me?",
+      "What's your favorite thing we do together?",
+      "What's something you're curious about that I know?",
+      "What's a skill you'd like me to help you learn?",
+      "What's something about me that surprises you?",
+      "What's a hobby or interest you'd like to share with me?",
+      "What's something you're proud of that I taught you?",
+      "What's a question you've always wanted to ask me?",
+      "What's something you wish I understood better about you?",
+      "What's a way we could learn together?",
+      "What's something you'd like to explore or discover together?"
     ],
     'mother-daughter': [
       "What's your favorite memory of us together?",
@@ -1560,6 +1600,17 @@ const BondPetGame = () => {
                   👫 Best Friends Mode
                   <div className="text-sm font-normal mt-1">Strengthen your friendship</div>
                 </button>
+                <button
+                  onClick={() => {
+                    setRelationshipMode('parentChild');
+                    setCurrentPlayer(playerName || 'Parent');
+                    setGameState('pet');
+                  }}
+                  className="w-full text-white py-4 rounded-xl font-semibold hover:shadow-lg transition-all bg-gradient-to-r from-blue-400 to-cyan-400 text-lg"
+                >
+                  👨‍👩‍👧 Parent-Child Mode
+                  <div className="text-sm font-normal mt-1">Build bonds through learning together</div>
+                </button>
               </div>
             </div>
           </div>
@@ -1580,6 +1631,7 @@ const BondPetGame = () => {
                 <p className="text-sm text-gray-600">
                   {relationshipMode === 'friends' && '👫 Best Friends Mode'}
                   {relationshipMode === 'couples' && '💕 Couples Mode'}
+                  {relationshipMode === 'parentChild' && '👨‍👩‍👧 Parent-Child Mode'}
                 </p>
               </div>
               <div className="text-right">
@@ -1874,6 +1926,31 @@ const BondPetGame = () => {
                 💕 Relationship Explorer
                 <div className="text-sm font-normal mt-1 text-gray-600">Deep questions to connect</div>
               </button>
+              {relationshipMode === 'parentChild' && (
+                <>
+                  <button 
+                    onClick={() => {
+                      setLearnAboutEachOtherIndex(0);
+                      setGameState('learnAboutEachOther');
+                    }}
+                    className="bg-white text-blue-600 py-4 rounded-xl font-semibold hover:bg-blue-50 transition-all text-lg shadow-lg"
+                  >
+                    🔍 Learn About Each Other
+                    <div className="text-sm font-normal mt-1 text-gray-600">Discover and share together</div>
+                  </button>
+                  <button 
+                    onClick={() => {
+                      setParentTeachesIndex(0);
+                      setSelectedLesson(null);
+                      setGameState('parentTeaches');
+                    }}
+                    className="bg-white text-green-600 py-4 rounded-xl font-semibold hover:bg-green-50 transition-all text-lg shadow-lg"
+                  >
+                    📚 Parent Teaches Child
+                    <div className="text-sm font-normal mt-1 text-gray-600">Share knowledge and wisdom</div>
+                  </button>
+                </>
+              )}
             </div>
           </div>
 
@@ -2553,6 +2630,291 @@ const BondPetGame = () => {
       </div>
     );
     }
+  }
+
+  // Learn About Each Other Activity (Parent-Child)
+  if (gameState === 'learnAboutEachOther') {
+    const learnQuestions = [
+      "What's your favorite hobby or activity?",
+      "What makes you feel proud?",
+      "What's something you're curious about?",
+      "What's a skill you'd like to learn?",
+      "What's your favorite memory with me?",
+      "What's something that makes you happy?",
+      "What's a goal you have?",
+      "What's something you want to share with me?",
+      "What's your favorite subject or topic?",
+      "What's something you're good at?",
+      "What's a challenge you're facing?",
+      "What's something you'd like to do together?",
+      "What's your favorite way to spend time?",
+      "What's something you've learned recently?",
+      "What's a question you have for me?"
+    ];
+    
+    const currentQuestion = learnQuestions[learnAboutEachOtherIndex % learnQuestions.length];
+    
+    const nextQuestion = () => {
+      setLearnAboutEachOtherIndex(prev => {
+        const newIndex = (prev + 1) % learnQuestions.length;
+        return newIndex;
+      });
+    };
+    
+    const completeActivity = () => {
+      setGameData(prev => ({
+        ...prev,
+        conversationsCompleted: prev.conversationsCompleted + 1,
+        relationshipProgress: Math.min(100, prev.relationshipProgress + 5),
+        bondLevel: Math.floor((prev.relationshipProgress + 5) / 20) + 1,
+        pet: {
+          ...prev.pet,
+          happiness: Math.min(100, prev.pet.happiness + 5),
+          love: Math.min(100, prev.pet.love + 5),
+          learning: Math.min(100, prev.pet.learning + 3)
+        },
+        coins: prev.coins + 20,
+        conversationHistory: [...prev.conversationHistory, { 
+          type: 'learnAboutEachOther', 
+          question: currentQuestion, 
+          time: new Date() 
+        }]
+      }));
+      setGameState('pet');
+    };
+    
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-200 via-cyan-200 to-indigo-200 p-4">
+        <div className="max-w-2xl mx-auto">
+          <div className="bg-white rounded-2xl p-6 shadow-lg">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-bold text-blue-600">🔍 Learn About Each Other</h2>
+              <button onClick={() => setGameState('pet')}
+                className="bg-gray-500 text-white px-4 py-2 rounded-lg font-semibold hover:bg-gray-600">
+                ← Back
+              </button>
+            </div>
+            
+            <div className="text-center mb-6">
+              <div className="text-6xl mb-4">💬</div>
+              <p className="text-lg text-gray-700 mb-4">Take turns answering and learning about each other</p>
+            </div>
+            
+            <div className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-xl p-6 mb-6 border-2 border-blue-200">
+              <h3 className="text-2xl font-bold mb-4 text-blue-700">Question:</h3>
+              <p className="text-xl font-semibold text-gray-800 mb-4">{currentQuestion}</p>
+              <p className="text-sm text-gray-600 italic">Take turns sharing your answers with each other</p>
+            </div>
+            
+            <div className="space-y-3">
+              <button
+                onClick={nextQuestion}
+                className="w-full bg-gradient-to-r from-blue-400 to-cyan-500 text-white py-4 rounded-xl font-semibold hover:shadow-lg transition-all text-lg active:scale-95"
+              >
+                Next Question ➡️
+              </button>
+              <button
+                onClick={completeActivity}
+                className="w-full bg-gradient-to-r from-green-400 to-emerald-500 text-white py-4 rounded-xl font-semibold hover:shadow-lg transition-all text-lg active:scale-95"
+              >
+                Complete Activity ✅ (+20 coins, +5% bond)
+              </button>
+            </div>
+            
+            <div className="mt-6 text-center text-sm text-gray-600">
+              Question {learnAboutEachOtherIndex + 1} of {learnQuestions.length}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Parent Teaches Child Activity
+  if (gameState === 'parentTeaches') {
+    const lessons = [
+      { id: 'math', name: 'Mathematics', emoji: '🔢', description: 'Numbers, counting, and basic math' },
+      { id: 'reading', name: 'Reading', emoji: '📖', description: 'Letters, words, and stories' },
+      { id: 'science', name: 'Science', emoji: '🔬', description: 'Nature, experiments, and discovery' },
+      { id: 'art', name: 'Art & Creativity', emoji: '🎨', description: 'Drawing, colors, and imagination' },
+      { id: 'music', name: 'Music', emoji: '🎵', description: 'Songs, rhythm, and instruments' },
+      { id: 'life', name: 'Life Skills', emoji: '🌱', description: 'Important lessons for everyday life' },
+      { id: 'history', name: 'History', emoji: '📜', description: 'Stories from the past' },
+      { id: 'nature', name: 'Nature', emoji: '🌳', description: 'Plants, animals, and the environment' }
+    ];
+    
+    if (!selectedLesson) {
+      return (
+        <div className="min-h-screen bg-gradient-to-br from-green-200 via-emerald-200 to-teal-200 p-4">
+          <div className="max-w-3xl mx-auto">
+            <div className="bg-white rounded-2xl p-6 shadow-lg">
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-bold text-green-600">📚 Parent Teaches Child</h2>
+                <button onClick={() => setGameState('pet')}
+                  className="bg-gray-500 text-white px-4 py-2 rounded-lg font-semibold hover:bg-gray-600">
+                  ← Back
+                </button>
+              </div>
+              
+              <div className="text-center mb-6">
+                <div className="text-6xl mb-4">📚</div>
+                <p className="text-lg text-gray-700 mb-4">Choose a lesson to teach together</p>
+                <p className="text-sm text-gray-600">Share knowledge and learn together!</p>
+              </div>
+              
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                {lessons.map((lesson) => (
+                  <button
+                    key={lesson.id}
+                    onClick={() => setSelectedLesson(lesson)}
+                    className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl p-4 border-2 border-green-200 hover:border-green-400 transition-all hover:shadow-lg active:scale-95"
+                  >
+                    <div className="text-4xl mb-2">{lesson.emoji}</div>
+                    <div className="font-semibold text-gray-800 mb-1">{lesson.name}</div>
+                    <div className="text-xs text-gray-600">{lesson.description}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    
+    const lessonContent = {
+      math: [
+        "Let's count together: 1, 2, 3, 4, 5...",
+        "What's 2 + 2? Let's figure it out!",
+        "Can you find 3 red objects in the room?",
+        "Let's practice counting by 10s: 10, 20, 30..."
+      ],
+      reading: [
+        "Let's learn the letter A. What words start with A?",
+        "Can you find the word 'love' in this sentence?",
+        "Let's read a story together. What happens next?",
+        "What's your favorite letter? Let's write it!"
+      ],
+      science: [
+        "Why do plants need water? Let's explore!",
+        "What happens when we mix colors?",
+        "Let's observe the weather today. What do you see?",
+        "How do butterflies grow? Let's learn together!"
+      ],
+      art: [
+        "What colors make you happy? Let's draw it!",
+        "Can you create a picture of our family?",
+        "Let's make something beautiful together!",
+        "What's your favorite thing to draw?"
+      ],
+      music: [
+        "Let's sing a song together!",
+        "Can you clap to the rhythm?",
+        "What's your favorite song? Let's sing it!",
+        "Let's make music with our voices!"
+      ],
+      life: [
+        "Why is it important to be kind to others?",
+        "How do we take care of ourselves?",
+        "What does it mean to be a good friend?",
+        "Let's talk about being responsible!"
+      ],
+      history: [
+        "Let's learn about people from long ago!",
+        "What's an important event that happened?",
+        "Who are some heroes from history?",
+        "Let's explore how things used to be!"
+      ],
+      nature: [
+        "What animals live in the forest?",
+        "How do trees grow? Let's find out!",
+        "What's your favorite animal? Let's learn about it!",
+        "Why is it important to take care of nature?"
+      ]
+    };
+    
+    const currentContent = lessonContent[selectedLesson.id] || lessonContent.math;
+    const currentStep = parentTeachesIndex % currentContent.length;
+    const currentTeaching = currentContent[currentStep];
+    
+    const nextStep = () => {
+      setParentTeachesIndex(prev => prev + 1);
+    };
+    
+    const completeTeaching = () => {
+      setGameData(prev => ({
+        ...prev,
+        conversationsCompleted: prev.conversationsCompleted + 1,
+        relationshipProgress: Math.min(100, prev.relationshipProgress + 8),
+        bondLevel: Math.floor((prev.relationshipProgress + 8) / 20) + 1,
+        pet: {
+          ...prev.pet,
+          happiness: Math.min(100, prev.pet.happiness + 8),
+          love: Math.min(100, prev.pet.love + 8),
+          learning: Math.min(100, prev.pet.learning + 10)
+        },
+        coins: prev.coins + 30,
+        conversationHistory: [...prev.conversationHistory, { 
+          type: 'parentTeaches', 
+          lesson: selectedLesson.name, 
+          time: new Date() 
+        }]
+      }));
+      setSelectedLesson(null);
+      setParentTeachesIndex(0);
+      setGameState('pet');
+    };
+    
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-green-200 via-emerald-200 to-teal-200 p-4">
+        <div className="max-w-2xl mx-auto">
+          <div className="bg-white rounded-2xl p-6 shadow-lg">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-bold text-green-600">📚 Teaching: {selectedLesson.name}</h2>
+              <button onClick={() => {
+                setSelectedLesson(null);
+                setParentTeachesIndex(0);
+              }}
+                className="bg-gray-500 text-white px-4 py-2 rounded-lg font-semibold hover:bg-gray-600">
+                ← Back
+              </button>
+            </div>
+            
+            <div className="text-center mb-6">
+              <div className="text-6xl mb-4">{selectedLesson.emoji}</div>
+              <p className="text-lg text-gray-700 mb-4">Share this lesson together</p>
+            </div>
+            
+            <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl p-6 mb-6 border-2 border-green-200">
+              <h3 className="text-xl font-bold mb-4 text-green-700">Lesson Step {currentStep + 1}:</h3>
+              <p className="text-lg font-semibold text-gray-800 mb-4">{currentTeaching}</p>
+              <p className="text-sm text-gray-600 italic">Parent: Share this with your child. Child: Ask questions and learn!</p>
+            </div>
+            
+            <div className="space-y-3">
+              {currentStep < currentContent.length - 1 ? (
+                <button
+                  onClick={nextStep}
+                  className="w-full bg-gradient-to-r from-green-400 to-emerald-500 text-white py-4 rounded-xl font-semibold hover:shadow-lg transition-all text-lg active:scale-95"
+                >
+                  Next Step ➡️
+                </button>
+              ) : (
+                <button
+                  onClick={completeTeaching}
+                  className="w-full bg-gradient-to-r from-blue-400 to-cyan-500 text-white py-4 rounded-xl font-semibold hover:shadow-lg transition-all text-lg active:scale-95"
+                >
+                  Complete Lesson ✅ (+30 coins, +8% bond, +10 learning)
+                </button>
+              )}
+            </div>
+            
+            <div className="mt-6 text-center text-sm text-gray-600">
+              Step {currentStep + 1} of {currentContent.length}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   if (gameState === 'petShop') {
@@ -3500,7 +3862,7 @@ const BondPetGame = () => {
   }
 
   if (gameState === 'relationshipExplorer') {
-    const questions = relationshipExplorerQuestions[relationshipMode] || relationshipExplorerQuestions.friends;
+    const questions = relationshipExplorerQuestions[relationshipMode] || relationshipExplorerQuestions.friends || relationshipExplorerQuestions.parentChild;
     const currentQuestion = questions[relationshipExplorerIndex % questions.length];
 
     const nextQuestion = () => {
