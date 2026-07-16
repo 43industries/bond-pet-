@@ -41,11 +41,13 @@ const BondPetGame = () => {
     },
     inventory: [],
     foodInventory: {}, // { '🍎': 0, '🍌': 0, etc. }
-    coins: 0,
+    coins: 20,
     conversationsCompleted: 0,
     relationshipProgress: 0, // 0-100, tracks relationship strength
     bondLevel: 1, // Levels up as relationship progresses
     unlockedPets: ['dog'],
+    puzzlesCompleted: 0,
+    sharedProgress: 0,
     gamesWon: 0,
     bibleVerses: [],
     conversationHistory: [], // Track conversation topics/questions
@@ -106,7 +108,19 @@ const BondPetGame = () => {
     }
   ];
   
-  const [unlockedPets, setUnlockedPets] = useState(['dog']);
+  // Food shop items (defined early so pet hub can read inventory safely)
+  const foodItems = [
+    { emoji: '🍎', name: 'Apple', cost: 5, nutrition: 15 },
+    { emoji: '🍌', name: 'Banana', cost: 5, nutrition: 15 },
+    { emoji: '🥕', name: 'Carrot', cost: 4, nutrition: 12 },
+    { emoji: '🍞', name: 'Bread', cost: 6, nutrition: 18 },
+    { emoji: '🥛', name: 'Milk', cost: 8, nutrition: 20 },
+    { emoji: '🥚', name: 'Egg', cost: 7, nutrition: 20 },
+    { emoji: '🍇', name: 'Grapes', cost: 6, nutrition: 15 },
+    { emoji: '🍓', name: 'Strawberry', cost: 5, nutrition: 12 },
+    { emoji: '🍗', name: 'Chicken', cost: 12, nutrition: 30 },
+    { emoji: '🥗', name: 'Salad', cost: 10, nutrition: 25 }
+  ];
 
   // Puzzle games states (match-3)
   const [puzzleBoard, setPuzzleBoard] = useState([]);
@@ -149,15 +163,152 @@ const BondPetGame = () => {
     tetrisRef.current = { board: tetrisBoard, piece: tetrisPiece, gameOver: tetrisGameOver, paused: tetrisPaused };
   }, [tetrisBoard, tetrisPiece, tetrisGameOver, tetrisPaused]);
 
+  // Snake game loop
+  useEffect(() => {
+    if (gameState !== 'snake' || !snakeRunning || snakeGameOver) return undefined;
+    const tick = () => {
+      const ref = snakeRef.current;
+      if (!ref.running || ref.gameOver) return;
+      const direction = ref.nextDirection || ref.direction;
+      const head = ref.snake[0];
+      const next = {
+        x: head.x + (direction === 'right' ? 1 : direction === 'left' ? -1 : 0),
+        y: head.y + (direction === 'down' ? 1 : direction === 'up' ? -1 : 0)
+      };
+      if (next.x < 0 || next.y < 0 || next.x >= SNAKE_SIZE || next.y >= SNAKE_SIZE ||
+          ref.snake.some(s => s.x === next.x && s.y === next.y)) {
+        ref.gameOver = true;
+        ref.running = false;
+        setSnakeGameOver(true);
+        setSnakeRunning(false);
+        return;
+      }
+      const grew = ref.food && next.x === ref.food.x && next.y === ref.food.y;
+      const newSnake = [next, ...ref.snake];
+      if (!grew) newSnake.pop();
+      else {
+        ref.food = spawnSnakeFood(newSnake);
+        setSnakeScore(s => s + 10);
+      }
+      ref.snake = newSnake;
+      ref.direction = direction;
+      setSnakeGame({ snake: newSnake, direction, nextDirection: direction, food: ref.food });
+    };
+    const id = setInterval(tick, 160);
+    return () => clearInterval(id);
+  }, [gameState, snakeRunning, snakeGameOver]);
+
+  useEffect(() => {
+    if (gameState !== 'snake') return undefined;
+    const onKey = (e) => {
+      const map = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right' };
+      if (map[e.key]) {
+        e.preventDefault();
+        setSnakeDirection(map[e.key]);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [gameState]);
+
+  // Brick breaker loop
+  useEffect(() => {
+    if (gameState !== 'brickbreaker' || !brickBreakerRunning || brickBreakerGameOver) return undefined;
+    const id = setInterval(() => {
+      const ref = brickBreakerRef.current;
+      if (!ref || !ref.running || ref.gameOver) return;
+      let { ballX, ballY, ballVX, ballVY, paddleX, paddleW, width, height, bricks } = ref;
+      ballX += ballVX;
+      ballY += ballVY;
+      if (ballX <= 0 || ballX >= width - 8) ballVX *= -1;
+      if (ballY <= 0) ballVY *= -1;
+      if (ballY + 8 >= height - 24 && ballX >= paddleX && ballX <= paddleX + paddleW) {
+        ballVY = -Math.abs(ballVY);
+        ballVX += (ballX - (paddleX + paddleW / 2)) * 0.08;
+      }
+      let scoreGain = 0;
+      bricks = bricks.map(b => {
+        if (!b.alive) return b;
+        if (ballX + 8 > b.x && ballX < b.x + b.w && ballY + 8 > b.y && ballY < b.y + b.h) {
+          ballVY *= -1;
+          scoreGain += 10;
+          return { ...b, alive: false };
+        }
+        return b;
+      });
+      if (scoreGain) {
+        ref.score += scoreGain;
+        setBrickBreakerScore(ref.score);
+      }
+      if (ballY > height) {
+        ref.gameOver = true;
+        ref.running = false;
+        setBrickBreakerGameOver(true);
+        setBrickBreakerRunning(false);
+      }
+      if (bricks.every(b => !b.alive)) {
+        ref.won = true;
+        ref.gameOver = true;
+        ref.running = false;
+        setBrickBreakerGameOver(true);
+        setBrickBreakerRunning(false);
+      }
+      Object.assign(ref, { ballX, ballY, ballVX, ballVY, bricks });
+      setBrickBreakerGame({
+        paddleX: ref.paddleX,
+        ballX,
+        ballY,
+        ballVX,
+        ballVY,
+        bricks,
+        width,
+        height,
+        paddleW
+      });
+    }, 30);
+    return () => clearInterval(id);
+  }, [gameState, brickBreakerRunning, brickBreakerGameOver]);
+
+  useEffect(() => {
+    if (gameState !== 'brickbreaker') return undefined;
+    const onKey = (e) => {
+      const ref = brickBreakerRef.current;
+      if (!ref) return;
+      if (e.key === 'ArrowLeft') ref.paddleX = Math.max(0, ref.paddleX - 20);
+      if (e.key === 'ArrowRight') ref.paddleX = Math.min(ref.width - ref.paddleW, ref.paddleX + 20);
+      setBrickBreakerGame(prev => prev ? { ...prev, paddleX: ref.paddleX } : prev);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [gameState]);
+
   // Snake states
   const [snakeGame, setSnakeGame] = useState(null);
   const [snakeScore, setSnakeScore] = useState(0);
   const [snakeGameOver, setSnakeGameOver] = useState(false);
+  const [snakeRunning, setSnakeRunning] = useState(false);
+  const snakeRef = useRef({ snake: [], direction: 'right', food: null, gameOver: false, running: false });
 
   // Brick Breaker states
   const [brickBreakerGame, setBrickBreakerGame] = useState(null);
   const [brickBreakerScore, setBrickBreakerScore] = useState(0);
   const [brickBreakerGameOver, setBrickBreakerGameOver] = useState(false);
+  const [brickBreakerRunning, setBrickBreakerRunning] = useState(false);
+  const brickBreakerRef = useRef(null);
+  const brickBreakerCanvasRef = useRef(null);
+
+  // Word search selection
+  const [wordSelection, setWordSelection] = useState([]);
+  const [wordSelecting, setWordSelecting] = useState(false);
+  const [wordHighlighted, setWordHighlighted] = useState([]);
+  const wordSelectionRef = useRef([]);
+
+  // Escape room input
+  const [escapeAnswer, setEscapeAnswer] = useState('');
+  const [escapeFeedback, setEscapeFeedback] = useState('');
+  const [passBanner, setPassBanner] = useState('');
+  const [player2Name, setPlayer2Name] = useState('');
+  const [saveMessage, setSaveMessage] = useState('');
 
   // Board games states
   const [ticTacToeBoard, setTicTacToeBoard] = useState(Array(9).fill(null));
@@ -308,6 +459,14 @@ const BondPetGame = () => {
       { id: 'photo', name: 'Family Photo', cost: 45, icon: '📷' },
       { id: 'cake', name: 'Birthday Cake', cost: 50, icon: '🎂' },
       { id: 'blanket', name: 'Cozy Blanket', cost: 40, icon: '🧸' }
+    ],
+    parentChild: [
+      { id: 'book', name: 'Story Book', cost: 35, icon: '📚' },
+      { id: 'photo', name: 'Family Photo', cost: 45, icon: '📷' },
+      { id: 'cake', name: 'Birthday Cake', cost: 50, icon: '🎂' },
+      { id: 'blanket', name: 'Cozy Blanket', cost: 40, icon: '🧸' },
+      { id: 'ball', name: 'Soccer Ball', cost: 40, icon: '⚽' },
+      { id: 'game', name: 'Board Game', cost: 45, icon: '🎲' }
     ],
     'mother-daughter': [
       { id: 'book', name: 'Story Book', cost: 35, icon: '📚' },
@@ -944,6 +1103,220 @@ const BondPetGame = () => {
     return null;
   };
 
+  const applyBondProgress = (prev, amount) => {
+    const relationshipProgress = Math.min(100, (prev.relationshipProgress || 0) + amount);
+    return {
+      relationshipProgress,
+      bondLevel: Math.floor(relationshipProgress / 20) + 1
+    };
+  };
+
+  const awardMiniGameRewards = (coinsEarned, bondGain = 3, puzzlesInc = 1) => {
+    setGameData(prev => {
+      const bond = applyBondProgress(prev, bondGain);
+      return {
+        ...prev,
+        coins: prev.coins + coinsEarned,
+        puzzlesCompleted: (prev.puzzlesCompleted || 0) + puzzlesInc,
+        sharedProgress: Math.min(100, (prev.sharedProgress || 0) + bondGain),
+        pet: { ...prev.pet, happiness: Math.min(100, prev.pet.happiness + 5) },
+        ...bond
+      };
+    });
+  };
+
+  const SAVE_KEY = 'bondpet-save';
+
+  const persistSave = (overrides = {}) => {
+    try {
+      const payload = {
+        gameData,
+        playerName,
+        player2Name,
+        relationshipMode,
+        currentPlayer,
+        ...overrides
+      };
+      localStorage.setItem(SAVE_KEY, JSON.stringify(payload));
+      setSaveMessage('Progress saved!');
+      setTimeout(() => setSaveMessage(''), 2000);
+    } catch (_) {
+      setSaveMessage('Could not save');
+    }
+  };
+
+  const loadSave = () => {
+    try {
+      const raw = localStorage.getItem(SAVE_KEY);
+      if (!raw) return false;
+      const data = JSON.parse(raw);
+      if (data.gameData) {
+        setGameData({
+          ...data.gameData,
+          puzzlesCompleted: data.gameData.puzzlesCompleted || 0,
+          sharedProgress: data.gameData.sharedProgress || 0
+        });
+      }
+      if (data.playerName) setPlayerName(data.playerName);
+      if (data.player2Name) setPlayer2Name(data.player2Name);
+      if (data.relationshipMode) setRelationshipMode(data.relationshipMode);
+      if (data.currentPlayer) setCurrentPlayer(data.currentPlayer);
+      setGameState('pet');
+      setSaveMessage('Welcome back!');
+      setTimeout(() => setSaveMessage(''), 2000);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  };
+
+  const startNewGame = () => {
+    localStorage.removeItem(SAVE_KEY);
+    setPlayerName('');
+    setPlayer2Name('');
+    setCurrentPlayer(null);
+    setRelationshipMode(null);
+    setPassBanner('');
+    setGameData({
+      pet: {
+        name: 'Buddy', type: 'dog', happiness: 50, level: 1,
+        hunger: 70, energy: 70, love: 50, cleanliness: 70, sleepiness: 50, learning: 30, isSleeping: false
+      },
+      inventory: [],
+      foodInventory: {},
+      coins: 20,
+      conversationsCompleted: 0,
+      relationshipProgress: 0,
+      bondLevel: 1,
+      unlockedPets: ['dog'],
+      puzzlesCompleted: 0,
+      sharedProgress: 0,
+      gamesWon: 0,
+      bibleVerses: [],
+      conversationHistory: [],
+      careHistory: [],
+      lastCareAction: null
+    });
+    setGameState('welcome');
+  };
+
+  const getOtherPlayer = () => {
+    const p1 = playerName || 'Player 1';
+    const p2 = player2Name || 'Player 2';
+    return currentPlayer === p1 ? p2 : p1;
+  };
+
+  const switchPlayer = () => {
+    const next = getOtherPlayer();
+    setCurrentPlayer(next);
+    setPassBanner('');
+  };
+
+  const promptPassDevice = () => {
+    const other = getOtherPlayer();
+    setPassBanner(`Pass to ${other}`);
+  };
+
+  const SNAKE_SIZE = 15;
+  const spawnSnakeFood = (snakeBody) => {
+    let food;
+    do {
+      food = { x: Math.floor(Math.random() * SNAKE_SIZE), y: Math.floor(Math.random() * SNAKE_SIZE) };
+    } while (snakeBody.some(s => s.x === food.x && s.y === food.y));
+    return food;
+  };
+
+  const initializeSnake = () => {
+    const snake = [{ x: 7, y: 7 }, { x: 6, y: 7 }, { x: 5, y: 7 }];
+    const food = spawnSnakeFood(snake);
+    const state = { snake, direction: 'right', nextDirection: 'right', food };
+    setSnakeGame(state);
+    snakeRef.current = { ...state, gameOver: false, running: true };
+    setSnakeScore(0);
+    setSnakeGameOver(false);
+    setSnakeRunning(true);
+  };
+
+  const setSnakeDirection = (dir) => {
+    const opposite = { up: 'down', down: 'up', left: 'right', right: 'left' };
+    const current = snakeRef.current.direction;
+    if (opposite[dir] === current) return;
+    snakeRef.current.nextDirection = dir;
+    setSnakeGame(prev => prev ? { ...prev, nextDirection: dir } : prev);
+  };
+
+  const initializeBrickBreaker = () => {
+    const cols = 8;
+    const rows = 4;
+    const bricks = [];
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        bricks.push({ x: c * 40 + 10, y: r * 22 + 30, w: 36, h: 16, alive: true });
+      }
+    }
+    const state = {
+      paddleX: 140,
+      ballX: 175,
+      ballY: 280,
+      ballVX: 3,
+      ballVY: -3,
+      bricks,
+      width: 350,
+      height: 400,
+      paddleW: 70
+    };
+    setBrickBreakerGame(state);
+    brickBreakerRef.current = { ...state, gameOver: false, won: false, running: true, score: 0 };
+    setBrickBreakerScore(0);
+    setBrickBreakerGameOver(false);
+    setBrickBreakerRunning(true);
+  };
+
+  const initializeJigsaw = () => {
+    let board = [1, 2, 3, 4, 5, 6, 7, 8, 0];
+    for (let n = 0; n < 40; n++) {
+      const empty = board.indexOf(0);
+      const er = Math.floor(empty / 3);
+      const ec = empty % 3;
+      const moves = [];
+      if (er > 0) moves.push(empty - 3);
+      if (er < 2) moves.push(empty + 3);
+      if (ec > 0) moves.push(empty - 1);
+      if (ec < 2) moves.push(empty + 1);
+      const swap = moves[Math.floor(Math.random() * moves.length)];
+      [board[empty], board[swap]] = [board[swap], board[empty]];
+    }
+    setJigsawPieces(board);
+    setJigsawProgress(board.filter((v, i) => i < 8 && v === i + 1).length);
+  };
+
+  const LOGIC_QUESTIONS = [
+    { q: 'What comes next: 2, 4, 8, 16, ?', options: ['18', '24', '32', '30'], answer: '32' },
+    { q: 'Odd one out: 🍎 🍌 🚗 🍇', options: ['🍎', '🍌', '🚗', '🍇'], answer: '🚗' },
+    { q: 'If all roses are flowers and some flowers fade quickly, then:', options: ['All roses fade quickly', 'Some roses may fade quickly', 'No roses fade', 'Roses are not flowers'], answer: 'Some roses may fade quickly' },
+    { q: 'Complete: A, C, E, G, ?', options: ['H', 'I', 'J', 'K'], answer: 'I' },
+    { q: '3 cats catch 3 mice in 3 minutes. How long for 100 cats to catch 100 mice?', options: ['100 min', '3 min', '1 min', '300 min'], answer: '3 min' },
+    { q: 'Which number is missing: 1, 1, 2, 3, 5, ?, 13', options: ['6', '7', '8', '10'], answer: '8' },
+    { q: 'A is taller than B. C is shorter than B. Who is tallest?', options: ['A', 'B', 'C', 'Tie'], answer: 'A' },
+    { q: 'How many triangles if you draw an X inside a triangle?', options: ['2', '3', '4', '5'], answer: '4' }
+  ];
+
+  const initializeLogicPuzzle = () => {
+    setLogicPuzzle({ index: 0, score: 0, finished: false });
+  };
+
+  const ESCAPE_ROOMS = [
+    { title: 'Room 1: The Locked Gate', clue: 'The gate code is the number of letters in BOND plus LOVE (as numbers: BOND=4, LOVE=4). Enter 44.', answer: '44' },
+    { title: 'Room 2: The Whispering Mirror', clue: 'Unscramble: TEP → your companion type. Answer: PET', answer: 'PET' },
+    { title: 'Room 3: Freedom Door', clue: 'What do you build through play? (one word)', answer: 'BOND' }
+  ];
+
+  const initializeEscapeRoom = () => {
+    setEscapeRoom({ room: 0, completed: false });
+    setEscapeAnswer('');
+    setEscapeFeedback('');
+  };
+
   const completePuzzle = () => {
     const success = score >= targetScore;
     const coinsEarned = success ? Math.floor(score / 10) + 50 : Math.floor(score / 20);
@@ -1458,7 +1831,7 @@ const BondPetGame = () => {
     
     const words = relationshipMode === 'couples'
       ? ['LOVE', 'KISS', 'HEART', 'ROMANCE']
-      : relationshipMode === 'family'
+      : relationshipMode === 'parentChild'
       ? ['FAMILY', 'HOME', 'LOVE', 'CARE']
       : ['FRIEND', 'FUN', 'LAUGH', 'JOY'];
     
@@ -1569,10 +1942,17 @@ const BondPetGame = () => {
           <div className="space-y-4">
             <input
               type="text"
-              placeholder="Enter your name"
+              placeholder="Player 1 name"
               value={playerName}
               onChange={(e) => setPlayerName(e.target.value)}
               className="w-full px-4 py-3 rounded-xl border-2 border-purple-300 focus:border-purple-500 outline-none"
+            />
+            <input
+              type="text"
+              placeholder="Player 2 name"
+              value={player2Name}
+              onChange={(e) => setPlayer2Name(e.target.value)}
+              className="w-full px-4 py-3 rounded-xl border-2 border-pink-300 focus:border-pink-500 outline-none"
             />
             
             <div className="space-y-3">
@@ -1580,9 +1960,14 @@ const BondPetGame = () => {
               <div className="space-y-3">
                 <button
                   onClick={() => {
+                    const p1 = playerName.trim() || 'Player 1';
+                    const p2 = player2Name.trim() || 'Player 2';
+                    setPlayerName(p1);
+                    setPlayer2Name(p2);
                     setRelationshipMode('couples');
-                    setCurrentPlayer(playerName || 'Player 1');
+                    setCurrentPlayer(p1);
                     setGameState('pet');
+                    persistSave({ playerName: p1, player2Name: p2, relationshipMode: 'couples', currentPlayer: p1 });
                   }}
                   className="w-full text-white py-4 rounded-xl font-semibold hover:shadow-lg transition-all bg-gradient-to-r from-pink-400 to-red-400 text-lg"
                 >
@@ -1591,9 +1976,14 @@ const BondPetGame = () => {
                 </button>
                 <button
                   onClick={() => {
+                    const p1 = playerName.trim() || 'Player 1';
+                    const p2 = player2Name.trim() || 'Player 2';
+                    setPlayerName(p1);
+                    setPlayer2Name(p2);
                     setRelationshipMode('friends');
-                    setCurrentPlayer(playerName || 'Player 1');
+                    setCurrentPlayer(p1);
                     setGameState('pet');
+                    persistSave({ playerName: p1, player2Name: p2, relationshipMode: 'friends', currentPlayer: p1 });
                   }}
                   className="w-full text-white py-4 rounded-xl font-semibold hover:shadow-lg transition-all bg-gradient-to-r from-yellow-400 to-orange-400 text-lg"
                 >
@@ -1602,15 +1992,28 @@ const BondPetGame = () => {
                 </button>
                 <button
                   onClick={() => {
+                    const p1 = playerName.trim() || 'Parent';
+                    const p2 = player2Name.trim() || 'Child';
+                    setPlayerName(p1);
+                    setPlayer2Name(p2);
                     setRelationshipMode('parentChild');
-                    setCurrentPlayer(playerName || 'Parent');
+                    setCurrentPlayer(p1);
                     setGameState('pet');
+                    persistSave({ playerName: p1, player2Name: p2, relationshipMode: 'parentChild', currentPlayer: p1 });
                   }}
                   className="w-full text-white py-4 rounded-xl font-semibold hover:shadow-lg transition-all bg-gradient-to-r from-blue-400 to-cyan-400 text-lg"
                 >
                   👨‍👩‍👧 Parent-Child Mode
                   <div className="text-sm font-normal mt-1">Build bonds through learning together</div>
                 </button>
+                {typeof localStorage !== 'undefined' && localStorage.getItem('bondpet-save') && (
+                  <button
+                    onClick={loadSave}
+                    className="w-full text-purple-700 py-3 rounded-xl font-semibold border-2 border-purple-300 bg-purple-50"
+                  >
+                    Continue Saved Game
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -1620,12 +2023,13 @@ const BondPetGame = () => {
   }
 
   if (gameState === 'pet') {
+    const recentCare = (gameData.careHistory || []).slice(-3).reverse();
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-200 via-purple-200 to-pink-200 p-4">
         <div className="max-w-4xl mx-auto">
           {/* Header */}
           <div className="bg-white rounded-2xl p-4 mb-4 shadow-lg">
-            <div className="flex justify-between items-center">
+            <div className="flex justify-between items-center flex-wrap gap-3">
               <div>
                 <h2 className="text-2xl font-bold text-purple-600">Hello, {currentPlayer}!</h2>
                 <p className="text-sm text-gray-600">
@@ -1633,12 +2037,49 @@ const BondPetGame = () => {
                   {relationshipMode === 'couples' && '💕 Couples Mode'}
                   {relationshipMode === 'parentChild' && '👨‍👩‍👧 Parent-Child Mode'}
                 </p>
+                <p className="text-xs text-gray-500 mt-1">{playerName} & {player2Name}</p>
               </div>
               <div className="text-right">
                 <div className="text-2xl font-bold text-yellow-600">🪙 {gameData.coins}</div>
+                <div className="flex gap-2 mt-2 justify-end flex-wrap">
+                  <button onClick={switchPlayer}
+                    className="bg-purple-500 text-white px-3 py-2 rounded-lg text-sm font-semibold min-h-[40px]">
+                    Switch to {getOtherPlayer()}
+                  </button>
+                  <button onClick={() => persistSave()}
+                    className="bg-teal-500 text-white px-3 py-2 rounded-lg text-sm font-semibold min-h-[40px]">
+                    Save
+                  </button>
+                  <button onClick={startNewGame}
+                    className="bg-gray-500 text-white px-3 py-2 rounded-lg text-sm font-semibold min-h-[40px]">
+                    New Game
+                  </button>
+                </div>
+                {saveMessage && <p className="text-xs text-green-600 mt-1">{saveMessage}</p>}
               </div>
             </div>
+            {passBanner && (
+              <div className="mt-3 bg-amber-100 border-2 border-amber-300 rounded-xl p-3 text-center">
+                <p className="font-bold text-amber-800">{passBanner}</p>
+                <button onClick={switchPlayer} className="mt-2 bg-amber-500 text-white px-4 py-2 rounded-lg font-semibold text-sm">
+                  I&apos;m {getOtherPlayer()} — continue
+                </button>
+              </div>
+            )}
           </div>
+
+          {recentCare.length > 0 && (
+            <div className="bg-white rounded-2xl p-4 mb-4 shadow-lg">
+              <h4 className="font-semibold text-center text-gray-700 mb-2">Together so far</h4>
+              <ul className="text-sm text-gray-600 space-y-1">
+                {recentCare.map((c, i) => (
+                  <li key={i} className="text-center">
+                    {c.player} {c.action === 'feed' ? 'fed' : c.action === 'bedtime' ? 'put to bed' : c.action === 'teach' ? 'taught' : c.action === 'shower' ? 'bathed' : c.action === 'wake' ? 'woke' : 'cared for'} {gameData.pet.name}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
 
           {/* Relationship Progress - Prominent */}
           <div className="bg-white rounded-2xl p-6 mb-4 shadow-lg border-4 border-purple-300">
@@ -1758,6 +2199,7 @@ const BondPetGame = () => {
                   onClick={() => {
                     setGameData(prev => {
                       const hoursSlept = 8; // Simulate full sleep
+                      const bond = applyBondProgress(prev, 3);
                       return {
                         ...prev,
                         pet: {
@@ -1768,11 +2210,12 @@ const BondPetGame = () => {
                           hunger: Math.max(0, prev.pet.hunger - 10), // Gets hungry after sleep
                           happiness: Math.min(100, prev.pet.happiness + 5)
                         },
-                        relationshipProgress: Math.min(100, prev.relationshipProgress + 3),
                         careHistory: [...prev.careHistory, { action: 'wake', player: currentPlayer, time: new Date() }],
-                        lastCareAction: { action: 'wake', player: currentPlayer }
+                        lastCareAction: { action: 'wake', player: currentPlayer },
+                        ...bond
                       };
                     });
+                    promptPassDevice();
                   }}
                   className="bg-gradient-to-r from-indigo-400 to-purple-500 text-white px-6 py-3 rounded-xl font-semibold hover:shadow-lg transition-all"
                 >
@@ -1862,7 +2305,7 @@ const BondPetGame = () => {
                     setGameData(prev => {
                       const newCleanliness = Math.min(100, prev.pet.cleanliness + 30);
                       const newLove = Math.min(100, prev.pet.love + 3);
-                      const newProgress = Math.min(100, prev.relationshipProgress + 2);
+                      const bond = applyBondProgress(prev, 2);
                       return {
                         ...prev,
                         pet: {
@@ -1872,11 +2315,12 @@ const BondPetGame = () => {
                           happiness: Math.min(100, prev.pet.happiness + 3),
                           energy: Math.min(100, prev.pet.energy + 5) // Bath time is refreshing
                         },
-                        relationshipProgress: newProgress,
                         careHistory: [...prev.careHistory, { action: 'shower', player: currentPlayer, time: new Date() }],
-                        lastCareAction: { action: 'shower', player: currentPlayer }
+                        lastCareAction: { action: 'shower', player: currentPlayer },
+                        ...bond
                       };
                     });
+                    promptPassDevice();
                   }}
                   className="bg-gradient-to-r from-cyan-400 to-blue-500 text-white py-4 rounded-xl font-semibold hover:shadow-lg transition-all active:scale-95"
                 >
@@ -1896,7 +2340,6 @@ const BondPetGame = () => {
                 </p>
               )}
               </div>
-            </div>
             </>
           )}
 
@@ -1966,26 +2409,32 @@ const BondPetGame = () => {
                 className="bg-gradient-to-r from-purple-400 to-blue-400 text-white py-3 rounded-xl font-semibold active:scale-95 transition-all">
                 🎲 Games
               </button>
+              <button onClick={() => setGameState('brickGames')}
+                className="bg-gradient-to-r from-red-400 to-orange-400 text-white py-3 rounded-xl font-semibold active:scale-95 transition-all">
+                🧱 Brick Games
+              </button>
+              <button onClick={() => setGameState('arcadeGames')}
+                className="bg-gradient-to-r from-yellow-400 to-amber-500 text-white py-3 rounded-xl font-semibold active:scale-95 transition-all">
+                👾 Arcade
+              </button>
+              <button onClick={() => setGameState('shop')}
+                className="bg-gradient-to-r from-rose-400 to-pink-500 text-white py-3 rounded-xl font-semibold active:scale-95 transition-all">
+                🎁 Gift Shop
+              </button>
+              <button onClick={() => setGameState('petShop')}
+                className="bg-gradient-to-r from-teal-400 to-cyan-500 text-white py-3 rounded-xl font-semibold active:scale-95 transition-all">
+                🐾 Pet Shop
+              </button>
+              <button onClick={() => setGameState('bibleVerses')}
+                className="bg-gradient-to-r from-indigo-400 to-violet-500 text-white py-3 rounded-xl font-semibold active:scale-95 transition-all col-span-2">
+                📖 Bible Verses
+              </button>
             </div>
           </div>
         </div>
       </div>
     );
   }
-
-  // Food shop items
-  const foodItems = [
-    { emoji: '🍎', name: 'Apple', cost: 5, nutrition: 15 },
-    { emoji: '🍌', name: 'Banana', cost: 5, nutrition: 15 },
-    { emoji: '🥕', name: 'Carrot', cost: 4, nutrition: 12 },
-    { emoji: '🍞', name: 'Bread', cost: 6, nutrition: 18 },
-    { emoji: '🥛', name: 'Milk', cost: 8, nutrition: 20 },
-    { emoji: '🥚', name: 'Egg', cost: 7, nutrition: 20 },
-    { emoji: '🍇', name: 'Grapes', cost: 6, nutrition: 15 },
-    { emoji: '🍓', name: 'Strawberry', cost: 5, nutrition: 12 },
-    { emoji: '🍗', name: 'Chicken', cost: 12, nutrition: 30 },
-    { emoji: '🥗', name: 'Salad', cost: 10, nutrition: 25 }
-  ];
 
   // Food Shop
   if (gameState === 'foodShop') {
@@ -3461,6 +3910,15 @@ const BondPetGame = () => {
                   Play Word Games
                 </button>
               </div>
+
+              <div className="bg-gradient-to-br from-yellow-100 to-orange-100 rounded-xl p-4 sm:p-6">
+                <h3 className="text-xl sm:text-2xl font-bold mb-2">👾 Arcade</h3>
+                <p className="text-gray-600 mb-4 text-sm">Pac-Man and Jetpack Joyride!</p>
+                <button onClick={() => setGameState('arcadeGames')}
+                  className="w-full bg-yellow-500 text-white py-3 rounded-lg font-semibold active:bg-yellow-600 min-h-[48px]">
+                  Open Arcade
+                </button>
+              </div>
             </div>
 
             <div className="border-t-2 border-gray-300 pt-4 sm:pt-6">
@@ -4202,6 +4660,7 @@ const BondPetGame = () => {
                 <h3 className="text-2xl font-bold mb-2">🐍 Snake</h3>
                 <p className="text-gray-600 mb-4 text-sm">Grow your snake by eating food. Avoid walls and yourself!</p>
                 <button onClick={() => {
+                  initializeSnake();
                   setBrickGameType('snake');
                   setGameState('snake');
                 }}
@@ -4214,6 +4673,7 @@ const BondPetGame = () => {
                 <h3 className="text-2xl font-bold mb-2">🎾 Brick Breaker</h3>
                 <p className="text-gray-600 mb-4 text-sm">Break all the bricks with your paddle and ball!</p>
                 <button onClick={() => {
+                  initializeBrickBreaker();
                   setBrickGameType('brickbreaker');
                   setGameState('brickbreaker');
                 }}
@@ -4352,20 +4812,63 @@ const BondPetGame = () => {
   }
 
   if (gameState === 'snake') {
+    const completeSnake = () => {
+      const coinsEarned = Math.floor(snakeScore / 5) + (snakeGameOver ? 5 : 10);
+      awardMiniGameRewards(coinsEarned, 3, 1);
+      setSnakeRunning(false);
+      setGameState('brickGames');
+    };
+
     return (
       <div className="min-h-screen bg-gradient-to-br from-green-200 via-teal-200 to-blue-200 p-4">
         <div className="max-w-md mx-auto">
           <div className="bg-white rounded-2xl p-4 shadow-lg">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-2xl font-bold text-green-600">🐍 Snake</h2>
-              <button onClick={() => setGameState('brickGames')}
+              <button onClick={() => { setSnakeRunning(false); setGameState('brickGames'); }}
                 className="bg-gray-500 text-white px-3 py-2 rounded-lg font-semibold active:bg-gray-600 text-sm">
                 ← Back
               </button>
             </div>
-            <div className="text-center p-8 bg-gray-100 rounded-lg mb-4">
-              <p className="text-gray-600 mb-4">Snake game coming soon!</p>
-              <p className="text-sm text-gray-500">This classic game will be available in the next update.</p>
+            <div className="text-center mb-3">
+              <div className="text-xl font-bold text-green-600">Score: {snakeScore}</div>
+            </div>
+            {snakeGameOver && (
+              <div className="text-center p-3 bg-red-50 rounded-lg mb-3">
+                <p className="font-bold text-red-600">Game Over!</p>
+                <p className="text-sm text-green-700">+{Math.floor(snakeScore / 5) + 5} coins ready</p>
+              </div>
+            )}
+            <div className="grid gap-0.5 bg-gray-800 p-2 rounded-lg mx-auto mb-4"
+              style={{ gridTemplateColumns: `repeat(${SNAKE_SIZE}, minmax(0, 1fr))`, maxWidth: 360 }}>
+              {Array.from({ length: SNAKE_SIZE * SNAKE_SIZE }).map((_, i) => {
+                const x = i % SNAKE_SIZE;
+                const y = Math.floor(i / SNAKE_SIZE);
+                const isHead = snakeGame?.snake?.[0]?.x === x && snakeGame?.snake?.[0]?.y === y;
+                const isBody = snakeGame?.snake?.some((s, idx) => idx > 0 && s.x === x && s.y === y);
+                const isFood = snakeGame?.food?.x === x && snakeGame?.food?.y === y;
+                return (
+                  <div key={i} className={`aspect-square rounded-sm ${
+                    isHead ? 'bg-green-400' : isBody ? 'bg-green-600' : isFood ? 'bg-red-400' : 'bg-gray-700'
+                  }`} />
+                );
+              })}
+            </div>
+            <div className="grid grid-cols-3 gap-2 mb-3 max-w-[200px] mx-auto">
+              <div />
+              <button onClick={() => setSnakeDirection('up')} className="bg-green-500 text-white py-3 rounded-lg font-bold min-h-[48px]">↑</button>
+              <div />
+              <button onClick={() => setSnakeDirection('left')} className="bg-green-500 text-white py-3 rounded-lg font-bold min-h-[48px]">←</button>
+              <button onClick={() => setSnakeDirection('down')} className="bg-green-500 text-white py-3 rounded-lg font-bold min-h-[48px]">↓</button>
+              <button onClick={() => setSnakeDirection('right')} className="bg-green-500 text-white py-3 rounded-lg font-bold min-h-[48px]">→</button>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <button onClick={initializeSnake} className="bg-teal-500 text-white py-3 rounded-lg font-semibold min-h-[48px]">
+                {snakeRunning ? 'Restart' : 'Start'}
+              </button>
+              <button onClick={completeSnake} className="bg-yellow-500 text-white py-3 rounded-lg font-semibold min-h-[48px]">
+                Collect Rewards
+              </button>
             </div>
           </div>
         </div>
@@ -4374,20 +4877,87 @@ const BondPetGame = () => {
   }
 
   if (gameState === 'brickbreaker') {
+    const movePaddle = (clientX, rect) => {
+      const ref = brickBreakerRef.current;
+      if (!ref) return;
+      const x = clientX - rect.left;
+      ref.paddleX = Math.max(0, Math.min(ref.width - ref.paddleW, x - ref.paddleW / 2));
+      setBrickBreakerGame(prev => prev ? { ...prev, paddleX: ref.paddleX } : prev);
+    };
+
+    const completeBrick = () => {
+      const bonus = brickBreakerRef.current?.won ? 40 : 10;
+      const coinsEarned = Math.floor(brickBreakerScore / 5) + bonus;
+      awardMiniGameRewards(coinsEarned, brickBreakerRef.current?.won ? 5 : 2, 1);
+      setBrickBreakerRunning(false);
+      setGameState('brickGames');
+    };
+
+    const g = brickBreakerGame;
+
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-200 via-indigo-200 to-purple-200 p-4">
         <div className="max-w-md mx-auto">
           <div className="bg-white rounded-2xl p-4 shadow-lg">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-2xl font-bold text-blue-600">🎾 Brick Breaker</h2>
-              <button onClick={() => setGameState('brickGames')}
+              <button onClick={() => { setBrickBreakerRunning(false); setGameState('brickGames'); }}
                 className="bg-gray-500 text-white px-3 py-2 rounded-lg font-semibold active:bg-gray-600 text-sm">
                 ← Back
               </button>
             </div>
-            <div className="text-center p-8 bg-gray-100 rounded-lg mb-4">
-              <p className="text-gray-600 mb-4">Brick Breaker game coming soon!</p>
-              <p className="text-sm text-gray-500">This classic game will be available in the next update.</p>
+            <div className="text-center mb-2 text-xl font-bold text-blue-600">Score: {brickBreakerScore}</div>
+            {brickBreakerGameOver && (
+              <div className="text-center p-3 bg-blue-50 rounded-lg mb-3">
+                <p className="font-bold">{brickBreakerRef.current?.won ? 'You cleared all bricks!' : 'Ball lost!'}</p>
+              </div>
+            )}
+            <div
+              ref={brickBreakerCanvasRef}
+              className="relative bg-slate-800 rounded-lg mx-auto mb-4 touch-none"
+              style={{ width: g?.width || 350, height: g?.height || 400, maxWidth: '100%' }}
+              onMouseMove={(e) => movePaddle(e.clientX, e.currentTarget.getBoundingClientRect())}
+              onTouchMove={(e) => {
+                const t = e.touches[0];
+                movePaddle(t.clientX, e.currentTarget.getBoundingClientRect());
+              }}
+            >
+              {g?.bricks?.filter(b => b.alive).map((b, i) => (
+                <div key={i} className="absolute bg-gradient-to-r from-pink-400 to-purple-500 rounded-sm"
+                  style={{ left: b.x, top: b.y, width: b.w, height: b.h }} />
+              ))}
+              {g && (
+                <>
+                  <div className="absolute bg-yellow-300 rounded-full"
+                    style={{ left: g.ballX, top: g.ballY, width: 10, height: 10 }} />
+                  <div className="absolute bg-cyan-300 rounded"
+                    style={{ left: g.paddleX, top: (g.height || 400) - 20, width: g.paddleW, height: 12 }} />
+                </>
+              )}
+            </div>
+            <div className="grid grid-cols-2 gap-2 mb-2">
+              <button onClick={() => {
+                const ref = brickBreakerRef.current;
+                if (ref) {
+                  ref.paddleX = Math.max(0, ref.paddleX - 30);
+                  setBrickBreakerGame(prev => prev ? { ...prev, paddleX: ref.paddleX } : prev);
+                }
+              }} className="bg-blue-500 text-white py-3 rounded-lg font-bold min-h-[48px]">←</button>
+              <button onClick={() => {
+                const ref = brickBreakerRef.current;
+                if (ref) {
+                  ref.paddleX = Math.min(ref.width - ref.paddleW, ref.paddleX + 30);
+                  setBrickBreakerGame(prev => prev ? { ...prev, paddleX: ref.paddleX } : prev);
+                }
+              }} className="bg-blue-500 text-white py-3 rounded-lg font-bold min-h-[48px]">→</button>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <button onClick={initializeBrickBreaker} className="bg-indigo-500 text-white py-3 rounded-lg font-semibold min-h-[48px]">
+                Restart
+              </button>
+              <button onClick={completeBrick} className="bg-yellow-500 text-white py-3 rounded-lg font-semibold min-h-[48px]">
+                Collect Rewards
+              </button>
             </div>
           </div>
         </div>
@@ -4498,47 +5068,108 @@ const BondPetGame = () => {
   if (gameState === 'wordSearch') {
     const words = relationshipMode === 'couples' 
       ? ['LOVE', 'KISS', 'HEART', 'DATE', 'ROMANCE']
-      : relationshipMode === 'family'
+      : relationshipMode === 'parentChild'
       ? ['FAMILY', 'HOME', 'LOVE', 'CARE', 'UNITED']
       : ['FRIEND', 'FUN', 'LAUGH', 'JOY', 'BOND'];
     
     const initializeWordSearch = () => {
       const gridSize = 10;
       const grid = Array(gridSize).fill(null).map(() => Array(gridSize).fill(''));
+      const placed = [];
       
-      // Place words
       words.forEach(word => {
-        const direction = Math.random() > 0.5 ? 'horizontal' : 'vertical';
-        const row = Math.floor(Math.random() * (gridSize - word.length));
-        const col = Math.floor(Math.random() * (gridSize - word.length));
-        
-        for (let i = 0; i < word.length; i++) {
-          if (direction === 'horizontal') {
-            grid[row][col + i] = word[i];
-          } else {
-            grid[row + i][col] = word[i];
+        let placedOk = false;
+        for (let attempt = 0; attempt < 40 && !placedOk; attempt++) {
+          const direction = Math.random() > 0.5 ? 'horizontal' : 'vertical';
+          const row = Math.floor(Math.random() * (direction === 'vertical' ? gridSize - word.length + 1 : gridSize));
+          const col = Math.floor(Math.random() * (direction === 'horizontal' ? gridSize - word.length + 1 : gridSize));
+          let fits = true;
+          for (let i = 0; i < word.length; i++) {
+            const r = direction === 'horizontal' ? row : row + i;
+            const c = direction === 'horizontal' ? col + i : col;
+            if (grid[r][c] && grid[r][c] !== word[i]) fits = false;
           }
+          if (!fits) continue;
+          for (let i = 0; i < word.length; i++) {
+            const r = direction === 'horizontal' ? row : row + i;
+            const c = direction === 'horizontal' ? col + i : col;
+            grid[r][c] = word[i];
+          }
+          placed.push(word);
+          placedOk = true;
         }
       });
       
-      // Fill empty cells
       const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
       for (let i = 0; i < gridSize; i++) {
         for (let j = 0; j < gridSize; j++) {
-          if (!grid[i][j]) {
-            grid[i][j] = letters[Math.floor(Math.random() * letters.length)];
-          }
+          if (!grid[i][j]) grid[i][j] = letters[Math.floor(Math.random() * letters.length)];
         }
       }
       
       setWordGrid(grid);
       setWordFound([]);
+      setWordSelection([]);
+      setWordHighlighted([]);
+      setWordList(words);
     };
 
     if (wordGrid.length === 0) initializeWordSearch();
 
+    const cellKey = (r, c) => `${r},${c}`;
+    const isAdjacent = (a, b) => Math.abs(a.r - b.r) <= 1 && Math.abs(a.c - b.c) <= 1 && !(a.r === b.r && a.c === b.c);
+
+    const finishSelection = (path) => {
+      if (path.length < 2) {
+        setWordSelection([]);
+        return;
+      }
+      const selected = path.map(p => wordGrid[p.r][p.c]).join('');
+      const reversed = selected.split('').reverse().join('');
+      const match = words.find(w => !wordFound.includes(w) && (w === selected || w === reversed));
+      if (match) {
+        const newFound = [...wordFound, match];
+        setWordFound(newFound);
+        setWordHighlighted(prev => [...prev, ...path.map(p => cellKey(p.r, p.c))]);
+        if (newFound.length === words.length) {
+          awardMiniGameRewards(40, 5, 1);
+        }
+      }
+      setWordSelection([]);
+    };
+
+    const onCellDown = (r, c) => {
+      setWordSelecting(true);
+      const path = [{ r, c }];
+      wordSelectionRef.current = path;
+      setWordSelection(path);
+    };
+    const onCellEnter = (r, c) => {
+      if (!wordSelecting) return;
+      setWordSelection(prev => {
+        const last = prev[prev.length - 1];
+        if (!last) {
+          wordSelectionRef.current = [{ r, c }];
+          return [{ r, c }];
+        }
+        if (last.r === r && last.c === c) return prev;
+        if (!isAdjacent(last, { r, c })) return prev;
+        if (prev.some(p => p.r === r && p.c === c)) return prev;
+        const next = [...prev, { r, c }];
+        wordSelectionRef.current = next;
+        return next;
+      });
+    };
+    const onCellUp = () => {
+      if (!wordSelecting) return;
+      setWordSelecting(false);
+      finishSelection(wordSelectionRef.current);
+      wordSelectionRef.current = [];
+    };
+
     return (
-      <div className="min-h-screen bg-gradient-to-br from-green-200 via-emerald-200 to-teal-200 p-4">
+      <div className="min-h-screen bg-gradient-to-br from-green-200 via-emerald-200 to-teal-200 p-4"
+        onMouseUp={onCellUp} onTouchEnd={onCellUp}>
         <div className="max-w-2xl mx-auto">
           <div className="bg-white rounded-2xl p-4 shadow-lg">
             <div className="flex justify-between items-center mb-4">
@@ -4550,7 +5181,7 @@ const BondPetGame = () => {
             </div>
             
             <div className="mb-4">
-              <p className="text-sm font-semibold mb-2">Find these words:</p>
+              <p className="text-sm font-semibold mb-2">Find these words (drag across letters):</p>
               <div className="flex flex-wrap gap-2">
                 {words.map((word, i) => (
                   <span key={i} className={`px-3 py-1 rounded-full text-sm font-semibold ${
@@ -4560,40 +5191,72 @@ const BondPetGame = () => {
                   </span>
                 ))}
               </div>
-            </div>
-
-            <div className="grid grid-cols-10 gap-1 mb-4 bg-gray-100 p-2 rounded-lg">
-              {wordGrid.map((row, i) => 
-                row.map((cell, j) => (
-                  <div
-                    key={`${i}-${j}`}
-                    className="w-8 h-8 sm:w-10 sm:h-10 bg-white rounded flex items-center justify-center text-sm sm:text-base font-bold border border-gray-300"
-                    >
-                      {cell}
-                  </div>
-                ))
+              {wordFound.length === words.length && (
+                <p className="text-center text-green-600 font-bold mt-2">All found! +40 coins earned 🎉</p>
               )}
             </div>
 
-            <div className="text-sm text-gray-600 text-center mb-4">
-              💡 Word Search - Find all the words! (Interactive version coming soon)
+            <div className="grid grid-cols-10 gap-1 mb-4 bg-gray-100 p-2 rounded-lg select-none">
+              {wordGrid.map((row, i) => 
+                row.map((cell, j) => {
+                  const key = cellKey(i, j);
+                  const selected = wordSelection.some(p => p.r === i && p.c === j);
+                  const found = wordHighlighted.includes(key);
+                  return (
+                    <button
+                      type="button"
+                      key={key}
+                      onMouseDown={() => onCellDown(i, j)}
+                      onMouseEnter={() => onCellEnter(i, j)}
+                      onTouchStart={(e) => { e.preventDefault(); onCellDown(i, j); }}
+                      className={`w-8 h-8 sm:w-10 sm:h-10 rounded flex items-center justify-center text-sm sm:text-base font-bold border ${
+                        found ? 'bg-green-300 border-green-500' :
+                        selected ? 'bg-yellow-300 border-yellow-500' :
+                        'bg-white border-gray-300'
+                      }`}
+                    >
+                      {cell}
+                    </button>
+                  );
+                })
+              )}
             </div>
 
             <button onClick={initializeWordSearch}
               className="w-full bg-green-500 text-white py-3 rounded-lg font-semibold active:bg-green-600 min-h-[48px]">
               New Puzzle
-                    </button>
+            </button>
           </div>
         </div>
       </div>
     );
   }
 
-  // Jigsaw Puzzle
+  // Jigsaw Puzzle (3x3 slide)
   if (gameState === 'jigsaw') {
+    if (jigsawPieces.length === 0) initializeJigsaw();
+
+    const slideTile = (index) => {
+      const board = [...jigsawPieces];
+      const empty = board.indexOf(0);
+      const er = Math.floor(empty / 3);
+      const ec = empty % 3;
+      const tr = Math.floor(index / 3);
+      const tc = index % 3;
+      if (Math.abs(er - tr) + Math.abs(ec - tc) !== 1) return;
+      [board[empty], board[index]] = [board[index], board[empty]];
+      setJigsawPieces(board);
+      const solved = board.every((v, i) => (i < 8 ? v === i + 1 : v === 0));
+      setJigsawProgress(board.filter((v, i) => i < 8 && v === i + 1).length);
+      if (solved) awardMiniGameRewards(35, 4, 1);
+    };
+
+    const solved = jigsawPieces.length === 9 && jigsawPieces.every((v, i) => (i < 8 ? v === i + 1 : v === 0));
+    const emojis = ['💕', '🌸', '⭐', '🎮', '🐾', '🌈', '🎵', '🏆'];
+
     return (
       <div className="min-h-screen bg-gradient-to-br from-yellow-200 via-orange-200 to-red-200 p-4">
-        <div className="max-w-2xl mx-auto">
+        <div className="max-w-md mx-auto">
           <div className="bg-white rounded-2xl p-4 shadow-lg">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-2xl font-bold text-yellow-600">🧩 Jigsaw Puzzle</h2>
@@ -4602,10 +5265,26 @@ const BondPetGame = () => {
                 ← Back
               </button>
             </div>
-            <div className="text-center p-8 bg-gray-100 rounded-lg mb-4">
-              <p className="text-gray-600 mb-4">Jigsaw Puzzle coming soon!</p>
-              <p className="text-sm text-gray-500">Beautiful picture puzzles will be available in the next update.</p>
+            <p className="text-center text-sm text-gray-600 mb-3">Slide tiles into place ({jigsawProgress}/8 correct)</p>
+            {solved && <p className="text-center font-bold text-green-600 mb-3">Solved! +35 coins 🎉</p>}
+            <div className="grid grid-cols-3 gap-2 mb-4 max-w-[280px] mx-auto">
+              {jigsawPieces.map((tile, i) => (
+                <button
+                  key={i}
+                  onClick={() => slideTile(i)}
+                  disabled={tile === 0 || solved}
+                  className={`aspect-square text-3xl rounded-xl font-bold min-h-[80px] ${
+                    tile === 0 ? 'bg-gray-200' : 'bg-gradient-to-br from-amber-100 to-orange-200 border-2 border-orange-300 active:scale-95'
+                  }`}
+                >
+                  {tile === 0 ? '' : emojis[tile - 1]}
+                </button>
+              ))}
             </div>
+            <button onClick={initializeJigsaw}
+              className="w-full bg-yellow-500 text-white py-3 rounded-lg font-semibold active:bg-yellow-600 min-h-[48px]">
+              Shuffle New Puzzle
+            </button>
           </div>
         </div>
       </div>
@@ -4614,6 +5293,22 @@ const BondPetGame = () => {
 
   // Logic Puzzle
   if (gameState === 'logicPuzzle') {
+    if (!logicPuzzle) initializeLogicPuzzle();
+    const q = LOGIC_QUESTIONS[logicPuzzle?.index || 0];
+
+    const answerLogic = (option) => {
+      if (!logicPuzzle || logicPuzzle.finished) return;
+      const correct = option === q.answer;
+      const nextScore = logicPuzzle.score + (correct ? 1 : 0);
+      const nextIndex = logicPuzzle.index + 1;
+      if (nextIndex >= LOGIC_QUESTIONS.length) {
+        setLogicPuzzle({ index: nextIndex, score: nextScore, finished: true });
+        awardMiniGameRewards(nextScore * 8 + 10, 4, 1);
+      } else {
+        setLogicPuzzle({ index: nextIndex, score: nextScore, finished: false });
+      }
+    };
+
     return (
       <div className="min-h-screen bg-gradient-to-br from-purple-200 via-indigo-200 to-blue-200 p-4">
         <div className="max-w-2xl mx-auto">
@@ -4625,10 +5320,29 @@ const BondPetGame = () => {
                 ← Back
               </button>
             </div>
-            <div className="text-center p-8 bg-gray-100 rounded-lg mb-4">
-              <p className="text-gray-600 mb-4">Logic Puzzles coming soon!</p>
-              <p className="text-sm text-gray-500">Brain-teasing puzzles will be available in the next update.</p>
-            </div>
+            {logicPuzzle?.finished ? (
+              <div className="text-center p-6">
+                <p className="text-2xl font-bold mb-2">Round complete!</p>
+                <p className="text-lg text-purple-600 mb-4">Score: {logicPuzzle.score}/{LOGIC_QUESTIONS.length}</p>
+                <p className="text-green-600 font-semibold mb-4">+{logicPuzzle.score * 8 + 10} coins earned</p>
+                <button onClick={initializeLogicPuzzle} className="w-full bg-purple-500 text-white py-3 rounded-lg font-semibold min-h-[48px]">
+                  Play Again
+                </button>
+              </div>
+            ) : (
+              <>
+                <p className="text-sm text-gray-500 mb-2">Question {(logicPuzzle?.index || 0) + 1} of {LOGIC_QUESTIONS.length}</p>
+                <p className="text-lg font-semibold mb-4">{q?.q}</p>
+                <div className="grid gap-2">
+                  {q?.options.map((opt) => (
+                    <button key={opt} onClick={() => answerLogic(opt)}
+                      className="w-full bg-indigo-50 hover:bg-indigo-100 border-2 border-indigo-200 text-left px-4 py-3 rounded-xl font-semibold min-h-[48px]">
+                      {opt}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -4637,6 +5351,28 @@ const BondPetGame = () => {
 
   // Escape Room
   if (gameState === 'escapeRoom') {
+    if (!escapeRoom) initializeEscapeRoom();
+    const room = ESCAPE_ROOMS[escapeRoom?.room || 0];
+
+    const submitEscape = () => {
+      if (!escapeRoom || escapeRoom.completed) return;
+      const normalized = escapeAnswer.trim().toUpperCase();
+      if (normalized === room.answer.toUpperCase()) {
+        const nextRoom = escapeRoom.room + 1;
+        if (nextRoom >= ESCAPE_ROOMS.length) {
+          setEscapeRoom({ room: nextRoom, completed: true });
+          setEscapeFeedback('You escaped!');
+          awardMiniGameRewards(50, 5, 1);
+        } else {
+          setEscapeRoom({ room: nextRoom, completed: false });
+          setEscapeAnswer('');
+          setEscapeFeedback('Door unlocked! Enter the next room...');
+        }
+      } else {
+        setEscapeFeedback('Wrong code — try again.');
+      }
+    };
+
     return (
       <div className="min-h-screen bg-gradient-to-br from-red-200 via-rose-200 to-pink-200 p-4">
         <div className="max-w-2xl mx-auto">
@@ -4648,9 +5384,77 @@ const BondPetGame = () => {
                 ← Back
               </button>
             </div>
-            <div className="text-center p-8 bg-gray-100 rounded-lg mb-4">
-              <p className="text-gray-600 mb-4">Escape Room puzzles coming soon!</p>
-              <p className="text-sm text-gray-500">Mystery and escape room style puzzles will be available in the next update.</p>
+            {escapeRoom?.completed ? (
+              <div className="text-center p-6">
+                <p className="text-2xl font-bold mb-2">Freedom! 🎉</p>
+                <p className="text-green-600 font-semibold mb-4">+50 coins and bond boost</p>
+                <button onClick={initializeEscapeRoom} className="w-full bg-red-500 text-white py-3 rounded-lg font-semibold min-h-[48px]">
+                  Play Again
+                </button>
+              </div>
+            ) : (
+              <>
+                <h3 className="text-xl font-bold mb-2">{room?.title}</h3>
+                <p className="text-gray-700 mb-4 bg-rose-50 p-4 rounded-xl">{room?.clue}</p>
+                <input
+                  value={escapeAnswer}
+                  onChange={(e) => setEscapeAnswer(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && submitEscape()}
+                  placeholder="Enter the code..."
+                  className="w-full border-2 border-rose-200 rounded-xl px-4 py-3 mb-3 min-h-[48px]"
+                />
+                {escapeFeedback && <p className="text-sm text-center mb-3 text-rose-700">{escapeFeedback}</p>}
+                <button onClick={submitEscape}
+                  className="w-full bg-red-500 text-white py-3 rounded-lg font-semibold active:bg-red-600 min-h-[48px]">
+                  Unlock Door
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Arcade menu
+  if (gameState === 'arcadeGames') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-yellow-200 via-orange-200 to-red-200 p-4">
+        <div className="max-w-4xl mx-auto">
+          <div className="bg-white rounded-2xl p-6 shadow-lg">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-3xl font-bold text-yellow-600">👾 Arcade</h2>
+              <button onClick={() => setGameState('pet')}
+                className="bg-gray-500 text-white px-4 py-2 rounded-lg font-semibold">
+                ← Back
+              </button>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="bg-gradient-to-br from-yellow-100 to-orange-100 rounded-xl p-6">
+                <h3 className="text-2xl font-bold mb-2">👻 Pac-Man</h3>
+                <p className="text-gray-600 mb-4 text-sm">Chomp dots and dodge the maze!</p>
+                <button onClick={() => {
+                  setPacmanScore(0);
+                  setPacmanPos({ x: 14, y: 23 });
+                  setGameState('pacman');
+                }}
+                  className="w-full bg-yellow-500 text-white py-3 rounded-lg font-semibold min-h-[48px]">
+                  Play Pac-Man
+                </button>
+              </div>
+              <div className="bg-gradient-to-br from-blue-100 to-indigo-100 rounded-xl p-6">
+                <h3 className="text-2xl font-bold mb-2">🚀 Jetpack Joyride</h3>
+                <p className="text-gray-600 mb-4 text-sm">Fly as far as you can!</p>
+                <button onClick={() => {
+                  setJetpackScore(0);
+                  setJetpackGameOver(false);
+                  setJetpackY(200);
+                  setGameState('jetpack');
+                }}
+                  className="w-full bg-blue-500 text-white py-3 rounded-lg font-semibold min-h-[48px]">
+                  Play Jetpack
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -5125,7 +5929,7 @@ const BondPetGame = () => {
   if (gameState === 'hangman') {
     const words = relationshipMode === 'couples'
       ? ['LOVE', 'KISS', 'HEART', 'ROMANCE', 'DATE', 'SWEET']
-      : relationshipMode === 'family'
+      : relationshipMode === 'parentChild'
       ? ['FAMILY', 'HOME', 'LOVE', 'CARE', 'UNITED', 'BOND']
       : ['FRIEND', 'FUN', 'LAUGH', 'JOY', 'BOND', 'SMILE'];
 
@@ -5244,7 +6048,7 @@ const BondPetGame = () => {
   if (gameState === 'wordScramble') {
     const words = relationshipMode === 'couples'
       ? ['LOVE', 'KISS', 'HEART', 'ROMANCE']
-      : relationshipMode === 'family'
+      : relationshipMode === 'parentChild'
       ? ['FAMILY', 'HOME', 'LOVE', 'CARE']
       : ['FRIEND', 'FUN', 'LAUGH', 'JOY'];
 
