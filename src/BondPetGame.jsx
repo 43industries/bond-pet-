@@ -1,6 +1,38 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Heart, Star, Gift, Sparkles, ShoppingBag, Zap, Trophy, Gamepad2 } from 'lucide-react';
 
+const GameShell = ({ bgClass, children, maxWidth = 'max-w-lg' }) => (
+  <div className={`min-h-screen p-3 sm:p-5 relative overflow-hidden game-shell-glow ${bgClass}`}>
+    <div className={`relative ${maxWidth} mx-auto`}>{children}</div>
+  </div>
+);
+
+const GameCard = ({ children, className = '' }) => (
+  <div className={`game-card p-4 sm:p-5 ${className}`}>{children}</div>
+);
+
+const GameHeader = ({ title, onBack, actions, titleClass = 'text-stone-900' }) => (
+  <div className="flex justify-between items-center gap-2 mb-4">
+    <h2 className={`game-title text-2xl sm:text-3xl font-bold ${titleClass}`}>{title}</h2>
+    <div className="flex gap-2 shrink-0">
+      {actions}
+      {onBack && (
+        <button type="button" onClick={onBack}
+          className="ctrl-btn bg-stone-800 text-white px-3 py-2 text-sm">
+          ← Back
+        </button>
+      )}
+    </div>
+  </div>
+);
+
+const StatPill = ({ label, value, tone = 'bg-teal-100 text-teal-900' }) => (
+  <div className={`rounded-2xl px-3 py-2.5 text-center shadow-sm ${tone}`}>
+    <div className="text-xl font-extrabold leading-none">{value}</div>
+    <div className="text-[10px] uppercase tracking-wider opacity-75 mt-1 font-bold">{label}</div>
+  </div>
+);
+
 const BondPetGame = () => {
   const [gameState, setGameState] = useState('welcome');
   const [playerName, setPlayerName] = useState('');
@@ -156,47 +188,89 @@ const BondPetGame = () => {
   const [tetrisGameOver, setTetrisGameOver] = useState(false);
   const [tetrisPaused, setTetrisPaused] = useState(false);
   const [tetrisFallTime, setTetrisFallTime] = useState(1000);
+  const [tetrisNextPiece, setTetrisNextPiece] = useState(null);
+  const tetrisNextRef = useRef(null);
   const tetrisRef = useRef({ board: null, piece: null, gameOver: false, paused: false });
+
+  // Snake states (must be before snake useEffects)
+  const [snakeGame, setSnakeGame] = useState(null);
+  const [snakeScore, setSnakeScore] = useState(0);
+  const [snakeGameOver, setSnakeGameOver] = useState(false);
+  const [snakeRunning, setSnakeRunning] = useState(false);
+  const snakeRef = useRef({ snake: [], direction: 'right', food: null, gameOver: false, running: false });
+
+  // Brick Breaker states (must be before brick breaker useEffects)
+  const [brickBreakerGame, setBrickBreakerGame] = useState(null);
+  const [brickBreakerScore, setBrickBreakerScore] = useState(0);
+  const [brickBreakerGameOver, setBrickBreakerGameOver] = useState(false);
+  const [brickBreakerRunning, setBrickBreakerRunning] = useState(false);
+  const brickBreakerRef = useRef(null);
+  const brickBreakerCanvasRef = useRef(null);
+
+  // Word search selection
+  const [wordSelection, setWordSelection] = useState([]);
+  const [wordSelecting, setWordSelecting] = useState(false);
+  const [wordHighlighted, setWordHighlighted] = useState([]);
+  const wordSelectionRef = useRef([]);
+
+  // Escape room / two-player UI
+  const [escapeAnswer, setEscapeAnswer] = useState('');
+  const [escapeFeedback, setEscapeFeedback] = useState('');
+  const [passBanner, setPassBanner] = useState('');
+  const [player2Name, setPlayer2Name] = useState('');
+  const [saveMessage, setSaveMessage] = useState('');
 
   // Keep ref in sync
   useEffect(() => {
     tetrisRef.current = { board: tetrisBoard, piece: tetrisPiece, gameOver: tetrisGameOver, paused: tetrisPaused };
-  }, [tetrisBoard, tetrisPiece, tetrisGameOver, tetrisPaused]);
+    tetrisNextRef.current = tetrisNextPiece;
+  }, [tetrisBoard, tetrisPiece, tetrisGameOver, tetrisPaused, tetrisNextPiece]);
 
+  const [snakeMessage, setSnakeMessage] = useState('');
   // Snake game loop
   useEffect(() => {
     if (gameState !== 'snake' || !snakeRunning || snakeGameOver) return undefined;
+    const speed = Math.max(70, 160 - Math.floor(snakeScore / 30) * 12);
     const tick = () => {
       const ref = snakeRef.current;
       if (!ref.running || ref.gameOver) return;
       const direction = ref.nextDirection || ref.direction;
       const head = ref.snake[0];
+      if (!head) return;
       const next = {
         x: head.x + (direction === 'right' ? 1 : direction === 'left' ? -1 : 0),
         y: head.y + (direction === 'down' ? 1 : direction === 'up' ? -1 : 0)
       };
-      if (next.x < 0 || next.y < 0 || next.x >= SNAKE_SIZE || next.y >= SNAKE_SIZE ||
+      const size = 15;
+      if (next.x < 0 || next.y < 0 || next.x >= size || next.y >= size ||
           ref.snake.some(s => s.x === next.x && s.y === next.y)) {
         ref.gameOver = true;
         ref.running = false;
         setSnakeGameOver(true);
         setSnakeRunning(false);
+        setSnakeMessage('Crashed!');
         return;
       }
       const grew = ref.food && next.x === ref.food.x && next.y === ref.food.y;
       const newSnake = [next, ...ref.snake];
       if (!grew) newSnake.pop();
       else {
-        ref.food = spawnSnakeFood(newSnake);
+        let food;
+        do {
+          food = { x: Math.floor(Math.random() * size), y: Math.floor(Math.random() * size) };
+        } while (newSnake.some(s => s.x === food.x && s.y === food.y));
+        ref.food = food;
         setSnakeScore(s => s + 10);
+        setSnakeMessage('Yum! +10');
+        setTimeout(() => setSnakeMessage(''), 600);
       }
       ref.snake = newSnake;
       ref.direction = direction;
       setSnakeGame({ snake: newSnake, direction, nextDirection: direction, food: ref.food });
     };
-    const id = setInterval(tick, 160);
+    const id = setInterval(tick, speed);
     return () => clearInterval(id);
-  }, [gameState, snakeRunning, snakeGameOver]);
+  }, [gameState, snakeRunning, snakeGameOver, snakeScore]);
 
   useEffect(() => {
     if (gameState !== 'snake') return undefined;
@@ -204,7 +278,12 @@ const BondPetGame = () => {
       const map = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right' };
       if (map[e.key]) {
         e.preventDefault();
-        setSnakeDirection(map[e.key]);
+        const dir = map[e.key];
+        const opposite = { up: 'down', down: 'up', left: 'right', right: 'left' };
+        const current = snakeRef.current.direction;
+        if (opposite[dir] === current) return;
+        snakeRef.current.nextDirection = dir;
+        setSnakeGame(prev => prev ? { ...prev, nextDirection: dir } : prev);
       }
     };
     window.addEventListener('keydown', onKey);
@@ -282,34 +361,6 @@ const BondPetGame = () => {
     return () => window.removeEventListener('keydown', onKey);
   }, [gameState]);
 
-  // Snake states
-  const [snakeGame, setSnakeGame] = useState(null);
-  const [snakeScore, setSnakeScore] = useState(0);
-  const [snakeGameOver, setSnakeGameOver] = useState(false);
-  const [snakeRunning, setSnakeRunning] = useState(false);
-  const snakeRef = useRef({ snake: [], direction: 'right', food: null, gameOver: false, running: false });
-
-  // Brick Breaker states
-  const [brickBreakerGame, setBrickBreakerGame] = useState(null);
-  const [brickBreakerScore, setBrickBreakerScore] = useState(0);
-  const [brickBreakerGameOver, setBrickBreakerGameOver] = useState(false);
-  const [brickBreakerRunning, setBrickBreakerRunning] = useState(false);
-  const brickBreakerRef = useRef(null);
-  const brickBreakerCanvasRef = useRef(null);
-
-  // Word search selection
-  const [wordSelection, setWordSelection] = useState([]);
-  const [wordSelecting, setWordSelecting] = useState(false);
-  const [wordHighlighted, setWordHighlighted] = useState([]);
-  const wordSelectionRef = useRef([]);
-
-  // Escape room input
-  const [escapeAnswer, setEscapeAnswer] = useState('');
-  const [escapeFeedback, setEscapeFeedback] = useState('');
-  const [passBanner, setPassBanner] = useState('');
-  const [player2Name, setPlayer2Name] = useState('');
-  const [saveMessage, setSaveMessage] = useState('');
-
   // Board games states
   const [ticTacToeBoard, setTicTacToeBoard] = useState(Array(9).fill(null));
   const [ticTacToePlayer, setTicTacToePlayer] = useState('X');
@@ -317,24 +368,44 @@ const BondPetGame = () => {
   const [connect4Board, setConnect4Board] = useState(Array(6).fill(null).map(() => Array(7).fill(null)));
   const [connect4Player, setConnect4Player] = useState('🔴');
   const [connect4Winner, setConnect4Winner] = useState(null);
+
+  // Ludo (local multiplayer)
+  const [ludoPlayers, setLudoPlayers] = useState([]);
+  const [ludoTurn, setLudoTurn] = useState(0);
+  const [ludoDice, setLudoDice] = useState(null);
+  const [ludoRolled, setLudoRolled] = useState(false);
+  const [ludoWinner, setLudoWinner] = useState(null);
+  const [ludoMessage, setLudoMessage] = useState('');
+  const [ludoPlayerCount, setLudoPlayerCount] = useState(2);
   
   // Checkers states
   const [checkersBoard, setCheckersBoard] = useState([]);
   const [checkersPlayer, setCheckersPlayer] = useState('red');
   const [checkersSelected, setCheckersSelected] = useState(null);
   const [checkersWinner, setCheckersWinner] = useState(null);
+  const [checkersLegalTargets, setCheckersLegalTargets] = useState([]);
+  const [checkersJumping, setCheckersJumping] = useState(null);
+  const [checkersMessage, setCheckersMessage] = useState('');
   
   // Mini Golf states
   const [golfHole, setGolfHole] = useState(1);
   const [golfScore, setGolfScore] = useState(0);
   const [golfStrokes, setGolfStrokes] = useState(0);
-  const [golfBallPos, setGolfBallPos] = useState({ x: 50, y: 50 });
+  const [golfBallPos, setGolfBallPos] = useState({ x: 20, y: 70 });
+  const [golfVel, setGolfVel] = useState({ x: 0, y: 0 });
+  const [golfAim, setGolfAim] = useState(0); // degrees
+  const [golfPower, setGolfPower] = useState(40);
+  const [golfMoving, setGolfMoving] = useState(false);
+  const [golfHolePos] = useState({ x: 82, y: 22 });
+  const [golfDone, setGolfDone] = useState(false);
+  const golfBallRef = useRef({ x: 20, y: 70, vx: 0, vy: 0 });
   
   // Word games states
   const [wordGameType, setWordGameType] = useState(null);
   const [hangmanWord, setHangmanWord] = useState('');
   const [hangmanGuessed, setHangmanGuessed] = useState([]);
   const [hangmanWrong, setHangmanWrong] = useState(0);
+  const [hangmanWon, setHangmanWon] = useState(false);
   const [scrambledWord, setScrambledWord] = useState('');
   const [currentWord, setCurrentWord] = useState('');
   const [scrambleScore, setScrambleScore] = useState(0);
@@ -370,25 +441,78 @@ const BondPetGame = () => {
   const [escapeInventory, setEscapeInventory] = useState([]);
 
   // Classic arcade games states
-  const [pacmanGame, setPacmanGame] = useState(null);
+  const [pacmanMaze, setPacmanMaze] = useState([]);
   const [pacmanScore, setPacmanScore] = useState(0);
   const [pacmanLives, setPacmanLives] = useState(3);
   const [pacmanLevel, setPacmanLevel] = useState(1);
   const [pacmanDirection, setPacmanDirection] = useState('right');
-  const [pacmanPos, setPacmanPos] = useState({ x: 14, y: 23 });
+  const [pacmanPos, setPacmanPos] = useState({ x: 1, y: 1 });
+  const [pacmanGhosts, setPacmanGhosts] = useState([]);
+  const [pacmanGameOver, setPacmanGameOver] = useState(false);
+  const pacmanDirRef = useRef('right');
+  const pacmanMazeRef = useRef([]);
+  const pacmanHitCooldownRef = useRef(false);
   
-  const [jetpackGame, setJetpackGame] = useState(null);
   const [jetpackScore, setJetpackScore] = useState(0);
   const [jetpackY, setJetpackY] = useState(200);
   const [jetpackObstacles, setJetpackObstacles] = useState([]);
   const [jetpackGameOver, setJetpackGameOver] = useState(false);
+  const [jetpackFlying, setJetpackFlying] = useState(false);
+  const jetpackFlyingRef = useRef(false);
+  const jetpackYRef = useRef(200);
+
+  const handleJetpackFly = (pressed) => {
+    jetpackFlyingRef.current = pressed;
+    setJetpackFlying(pressed);
+  };
+
+  const createPacmanMaze = () => {
+    const rows = 15;
+    const cols = 19;
+    const maze = Array(rows).fill(null).map(() => Array(cols).fill(2));
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        if (r === 0 || r === rows - 1 || c === 0 || c === cols - 1) maze[r][c] = 1;
+        else if (r % 2 === 0 && c % 2 === 0) maze[r][c] = 1;
+        else maze[r][c] = 2;
+      }
+    }
+    maze[1][1] = 0;
+    maze[1][cols - 2] = 0;
+    maze[rows - 2][1] = 0;
+    maze[rows - 2][cols - 2] = 0;
+    return maze;
+  };
+
+  const initializePacman = () => {
+    const maze = createPacmanMaze();
+    pacmanMazeRef.current = maze.map(row => [...row]);
+    setPacmanMaze(maze);
+    setPacmanPos({ x: 1, y: 1 });
+    setPacmanDirection('right');
+    pacmanDirRef.current = 'right';
+    setPacmanScore(0);
+    setPacmanLives(3);
+    setPacmanLevel(1);
+    setPacmanGameOver(false);
+    setPacmanGhosts([
+      { x: 17, y: 1, color: '🔴' },
+      { x: 17, y: 13, color: '🟣' }
+    ]);
+  };
 
   // Chess states
   const [chessBoard, setChessBoard] = useState(null);
   const [chessCurrentPlayer, setChessCurrentPlayer] = useState('white');
   const [chessSelectedSquare, setChessSelectedSquare] = useState(null);
+  const [chessLegalTargets, setChessLegalTargets] = useState([]);
   const [chessGameOver, setChessGameOver] = useState(false);
   const [chessWinner, setChessWinner] = useState(null);
+  const [chessStatusMsg, setChessStatusMsg] = useState('');
+  const [chessEndReason, setChessEndReason] = useState(null); // checkmate | stalemate
+  const [chessLastMove, setChessLastMove] = useState(null); // { from:[r,c], to:[r,c] }
+  const [chessFlipped, setChessFlipped] = useState(false);
+  const [chessCaptured, setChessCaptured] = useState({ white: [], black: [] });
 
   // Image/Memory game states
   const [imageMemoryCards, setImageMemoryCards] = useState([]);
@@ -1591,6 +1715,27 @@ const BondPetGame = () => {
   const moveTetrisPiece = (direction) => {
     if (!tetrisPiece || tetrisGameOver || tetrisPaused) return;
     
+    if (direction === 'hardDrop') {
+      let piece = { ...tetrisPiece };
+      while (isValidPosition(tetrisBoard, { ...piece, y: piece.y + 1 })) {
+        piece = { ...piece, y: piece.y + 1 };
+      }
+      const newBoard = placeTetrisPiece(tetrisBoard, piece);
+      const { board: clearedBoard, linesCleared } = clearTetrisLines(newBoard);
+      setTetrisBoard(clearedBoard);
+      if (linesCleared > 0) {
+        const points = [0, 100, 300, 500, 800][linesCleared] * (tetrisLevel + 1);
+        setTetrisScore(prev => prev + points + 20);
+        setTetrisLines(prev => prev + linesCleared);
+      }
+      const upcoming = tetrisNextPiece || createNewTetrisPiece();
+      const following = createNewTetrisPiece();
+      setTetrisNextPiece(following);
+      if (!isValidPosition(clearedBoard, upcoming)) setTetrisGameOver(true);
+      else setTetrisPiece(upcoming);
+      return;
+    }
+
     let newPiece = { ...tetrisPiece };
     if (direction === 'left') newPiece.x--;
     else if (direction === 'right') newPiece.x++;
@@ -1600,7 +1745,6 @@ const BondPetGame = () => {
     if (isValidPosition(tetrisBoard, newPiece)) {
       setTetrisPiece(newPiece);
     } else if (direction === 'down') {
-      // Place piece and create new one
       const newBoard = placeTetrisPiece(tetrisBoard, tetrisPiece);
       const { board: clearedBoard, linesCleared } = clearTetrisLines(newBoard);
       setTetrisBoard(clearedBoard);
@@ -1613,11 +1757,13 @@ const BondPetGame = () => {
         setTetrisFallTime(prev => Math.max(100, prev - 50));
       }
       
-      const nextPiece = createNewTetrisPiece();
-      if (!isValidPosition(clearedBoard, nextPiece)) {
+      const upcoming = tetrisNextPiece || createNewTetrisPiece();
+      const following = createNewTetrisPiece();
+      setTetrisNextPiece(following);
+      if (!isValidPosition(clearedBoard, upcoming)) {
         setTetrisGameOver(true);
       } else {
-        setTetrisPiece(nextPiece);
+        setTetrisPiece(upcoming);
       }
     }
   };
@@ -1670,11 +1816,14 @@ const BondPetGame = () => {
           setTetrisFallTime(prev => Math.max(100, prev - 50));
         }
         
-        const nextPiece = createNewTetrisPiece();
-        if (!isValidPosition(clearedBoard, nextPiece)) {
+        const upcoming = tetrisNextRef.current || createNewTetrisPiece();
+        const following = createNewTetrisPiece();
+        setTetrisNextPiece(following);
+        tetrisNextRef.current = following;
+        if (!isValidPosition(clearedBoard, upcoming)) {
           setTetrisGameOver(true);
         } else {
-          setTetrisPiece(nextPiece);
+          setTetrisPiece(upcoming);
         }
       }
     }, tetrisFallTime);
@@ -1695,7 +1844,8 @@ const BondPetGame = () => {
       if (e.key === 'ArrowLeft') moveTetrisPiece('left');
       else if (e.key === 'ArrowRight') moveTetrisPiece('right');
       else if (e.key === 'ArrowDown') moveTetrisPiece('down');
-      else if (e.key === 'ArrowUp' || e.key === ' ') moveTetrisPiece('rotate');
+      else if (e.key === 'ArrowUp') moveTetrisPiece('rotate');
+      else if (e.key === ' ') { e.preventDefault(); moveTetrisPiece('hardDrop'); }
       else if (e.key === 'p' || e.key === 'P') setTetrisPaused(!tetrisPaused);
     };
     
@@ -1709,121 +1859,171 @@ const BondPetGame = () => {
     }
   }, [gameState, puzzleBoard.length]);
 
-  // Pacman keyboard controls
+  // Pacman keyboard
   useEffect(() => {
-    if (gameState !== 'pacman') return;
-    
-    const handlePacmanKey = (key) => {
-      if (key === 'ArrowUp') setPacmanDirection('up');
-      else if (key === 'ArrowDown') setPacmanDirection('down');
-      else if (key === 'ArrowLeft') setPacmanDirection('left');
-      else if (key === 'ArrowRight') setPacmanDirection('right');
-    };
-    
+    if (gameState !== 'pacman') return undefined;
     const handleKeyPress = (e) => {
-      e.preventDefault();
-      handlePacmanKey(e.key);
+      const map = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right' };
+      if (map[e.key]) {
+        e.preventDefault();
+        pacmanDirRef.current = map[e.key];
+        setPacmanDirection(map[e.key]);
+      }
     };
-    
     window.addEventListener('keydown', handleKeyPress);
     return () => window.removeEventListener('keydown', handleKeyPress);
   }, [gameState]);
 
-  // Pacman movement
+  // Pacman movement + ghosts
   useEffect(() => {
-    if (gameState !== 'pacman') return;
-    
-    const movePacman = () => {
+    if (gameState !== 'pacman' || pacmanGameOver) return undefined;
+    const tick = () => {
+      const maze = pacmanMazeRef.current;
+      if (!maze.length) return;
+      const dir = pacmanDirRef.current;
       setPacmanPos(current => {
-        let newPos = { ...current };
-        if (pacmanDirection === 'up') newPos.y--;
-        else if (pacmanDirection === 'down') newPos.y++;
-        else if (pacmanDirection === 'left') newPos.x--;
-        else if (pacmanDirection === 'right') newPos.x++;
-        
-        // Check bounds
-        if (newPos.x < 0) newPos.x = 30;
-        if (newPos.x > 30) newPos.x = 0;
-        if (newPos.y < 0 || newPos.y > 27) return current;
-        
-        // Score will be updated when rendering checks the maze
-        return newPos;
+        const next = { ...current };
+        if (dir === 'up') next.y--;
+        else if (dir === 'down') next.y++;
+        else if (dir === 'left') next.x--;
+        else if (dir === 'right') next.x++;
+        const rows = maze.length;
+        const cols = maze[0].length;
+        if (next.x < 0 || next.y < 0 || next.x >= cols || next.y >= rows) return current;
+        if (maze[next.y][next.x] === 1) return current;
+        if (maze[next.y][next.x] === 2) {
+          maze[next.y][next.x] = 0;
+          pacmanMazeRef.current = maze;
+          setPacmanMaze(maze.map(r => [...r]));
+          setPacmanScore(s => s + 10);
+        }
+        return next;
       });
+      setPacmanGhosts(prev => prev.map(g => {
+        const options = [
+          { x: g.x + 1, y: g.y },
+          { x: g.x - 1, y: g.y },
+          { x: g.x, y: g.y + 1 },
+          { x: g.x, y: g.y - 1 }
+        ].filter(p => maze[p.y] && maze[p.y][p.x] !== 1 && maze[p.y][p.x] !== undefined);
+        if (!options.length) return g;
+        // Prefer step toward pac (use latest via closure — approximate with random bias)
+        const pick = options[Math.floor(Math.random() * options.length)];
+        return { ...g, x: pick.x, y: pick.y };
+      }));
     };
-    
-    const interval = setInterval(movePacman, 200);
-    return () => clearInterval(interval);
-  }, [gameState, pacmanDirection]);
+    const id = setInterval(tick, 220);
+    return () => clearInterval(id);
+  }, [gameState, pacmanGameOver]);
 
-  // Jetpack keyboard controls
+  // Pacman ghost collision
   useEffect(() => {
-    if (gameState !== 'jetpack' || jetpackGameOver) return;
-    
-    const handleJetpackKey = (pressed) => {
-      if (pressed) {
-        setJetpackY(prev => Math.max(50, prev - 5));
-      } else {
-        setJetpackY(prev => Math.min(350, prev + 3));
-      }
-    };
-    
-    const handleKeyPress = (e) => {
+    if (gameState !== 'pacman' || pacmanGameOver || pacmanHitCooldownRef.current) return;
+    const hit = pacmanGhosts.some(g => g.x === pacmanPos.x && g.y === pacmanPos.y);
+    if (hit) {
+      pacmanHitCooldownRef.current = true;
+      setPacmanLives(l => {
+        const next = l - 1;
+        if (next <= 0) setPacmanGameOver(true);
+        else setPacmanPos({ x: 1, y: 1 });
+        return Math.max(0, next);
+      });
+      setPacmanGhosts([
+        { x: 17, y: 1, color: '🔴' },
+        { x: 17, y: 13, color: '🟣' }
+      ]);
+      setTimeout(() => { pacmanHitCooldownRef.current = false; }, 1500);
+    }
+  }, [pacmanPos, pacmanGhosts, gameState, pacmanGameOver]);
+
+  // Jetpack keyboard + fly loop
+  useEffect(() => {
+    if (gameState !== 'jetpack' || jetpackGameOver) return undefined;
+    const onDown = (e) => {
       if (e.key === ' ' || e.key === 'ArrowUp') {
         e.preventDefault();
-        handleJetpackKey(true);
+        handleJetpackFly(true);
       }
     };
-    
-    const handleKeyUp = (e) => {
+    const onUp = (e) => {
       if (e.key === ' ' || e.key === 'ArrowUp') {
         e.preventDefault();
-        handleJetpackKey(false);
+        handleJetpackFly(false);
       }
     };
-    
-    window.addEventListener('keydown', handleKeyPress);
-    window.addEventListener('keyup', handleKeyUp);
+    window.addEventListener('keydown', onDown);
+    window.addEventListener('keyup', onUp);
     return () => {
-      window.removeEventListener('keydown', handleKeyPress);
-      window.removeEventListener('keyup', handleKeyUp);
+      window.removeEventListener('keydown', onDown);
+      window.removeEventListener('keyup', onUp);
     };
   }, [gameState, jetpackGameOver]);
 
-  // Jetpack game loop
   useEffect(() => {
-    if (gameState !== 'jetpack' || jetpackGameOver) return;
-    
+    if (gameState !== 'jetpack' || jetpackGameOver) return undefined;
     const gameLoop = setInterval(() => {
+      const flying = jetpackFlyingRef.current;
+      let y = jetpackYRef.current;
+      y = flying ? Math.max(40, y - 6) : Math.min(340, y + 4);
+      jetpackYRef.current = y;
+      setJetpackY(y);
       setJetpackScore(prev => prev + 1);
       setJetpackObstacles(prev => {
-        const newObstacles = prev.map(obs => ({ ...obs, x: obs.x - 5 }));
-        const filtered = newObstacles.filter(obs => obs.x > -50);
-        
-        // Add new obstacles
-        if (Math.random() < 0.1) {
-          filtered.push({
-            x: 600,
-            yTop: Math.random() * 150 + 50,
-            yBottom: Math.random() * 150 + 250,
-            gap: 100
-          });
+        let next = prev.map(obs => ({ ...obs, x: obs.x - 5 })).filter(obs => obs.x > -50);
+        if (Math.random() < 0.08) {
+          const gapTop = 80 + Math.random() * 120;
+          next.push({ x: 360, yTop: gapTop, yBottom: gapTop + 110 });
         }
-        
-        // Check collisions
-        filtered.forEach(obs => {
-          if (obs.x < 100 && obs.x > 50) {
-            if (jetpackY < obs.yTop || jetpackY > obs.yBottom) {
-              setJetpackGameOver(true);
-            }
-          }
-        });
-        
-        return filtered;
+        const crashed = next.some(obs =>
+          obs.x < 70 && obs.x > 30 && (y < obs.yTop || y + 30 > obs.yBottom)
+        );
+        if (crashed) setJetpackGameOver(true);
+        return next;
       });
-    }, 50);
-    
+    }, 40);
     return () => clearInterval(gameLoop);
-  }, [gameState, jetpackGameOver, jetpackY]);
+  }, [gameState, jetpackGameOver]);
+
+  useEffect(() => {
+    if (gameState !== 'miniGolf' || !golfMoving) return undefined;
+    const id = setInterval(() => {
+      const b = golfBallRef.current;
+      b.x += b.vx;
+      b.y += b.vy;
+      b.vx *= 0.96;
+      b.vy *= 0.96;
+      if (b.x < 2) { b.x = 2; b.vx *= -0.7; }
+      if (b.x > 95) { b.x = 95; b.vx *= -0.7; }
+      if (b.y < 2) { b.y = 2; b.vy *= -0.7; }
+      if (b.y > 90) { b.y = 90; b.vy *= -0.7; }
+      setGolfBallPos({ x: b.x, y: b.y });
+      const dx = b.x - golfHolePos.x;
+      const dy = b.y - golfHolePos.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      const speed = Math.sqrt(b.vx * b.vx + b.vy * b.vy);
+      if (dist < 4 && speed < 1.2) {
+        b.vx = 0; b.vy = 0;
+        setGolfMoving(false);
+        setGolfScore(s => s + golfStrokes);
+        if (golfHole >= 5) {
+          setGolfDone(true);
+          awardMiniGameRewards(Math.max(10, 80 - golfScore), 4, 1);
+        } else {
+          setGolfHole(h => h + 1);
+          setGolfStrokes(0);
+          b.x = 20; b.y = 70;
+          setGolfBallPos({ x: 20, y: 70 });
+        }
+        return;
+      }
+      if (speed < 0.15) {
+        b.vx = 0; b.vy = 0;
+        setGolfMoving(false);
+        setGolfVel({ x: 0, y: 0 });
+      }
+    }, 30);
+    return () => clearInterval(id);
+  }, [gameState, golfMoving, golfHole, golfStrokes, golfScore, golfHolePos.x, golfHolePos.y]);
 
   // Word Scramble initialization
   useEffect(() => {
@@ -3547,6 +3747,149 @@ const BondPetGame = () => {
   }
 
   // Board Games Functions
+  const LUDO_COLORS = [
+    { id: 'red', label: 'Red', emoji: '🔴', bg: 'bg-red-500', light: 'bg-red-100', start: 0 },
+    { id: 'green', label: 'Green', emoji: '🟢', bg: 'bg-green-500', light: 'bg-green-100', start: 13 },
+    { id: 'yellow', label: 'Yellow', emoji: '🟡', bg: 'bg-yellow-400', light: 'bg-yellow-100', start: 26 },
+    { id: 'blue', label: 'Blue', emoji: '🔵', bg: 'bg-blue-500', light: 'bg-blue-100', start: 39 }
+  ];
+
+  const ludoAbs = (playerIdx, rel) => {
+    if (rel < 0 || rel > 50) return null;
+    return (LUDO_COLORS[playerIdx].start + rel) % 52;
+  };
+
+  const ludoIsSafe = (abs) => abs !== null && abs % 13 === 0;
+
+  const initializeLudo = (count = 2) => {
+    const names = [
+      playerName || 'Player 1',
+      player2Name || 'Player 2',
+      'Player 3',
+      'Player 4'
+    ];
+    const players = LUDO_COLORS.slice(0, count).map((meta, i) => ({
+      ...meta,
+      name: names[i],
+      tokens: [-1, -1, -1, -1] // -1 yard, 0-50 track, 51-55 home, 56 done
+    }));
+    setLudoPlayers(players);
+    setLudoPlayerCount(count);
+    setLudoTurn(0);
+    setLudoDice(null);
+    setLudoRolled(false);
+    setLudoWinner(null);
+    setLudoMessage(`${players[0].name}'s turn — roll the dice!`);
+  };
+
+  const getLudoValidMoves = (players, turn, dice) => {
+    if (!dice || !players[turn]) return [];
+    const tokens = players[turn].tokens;
+    const moves = [];
+    tokens.forEach((rel, idx) => {
+      if (rel === 56) return;
+      if (rel === -1) {
+        if (dice === 6) moves.push(idx);
+        return;
+      }
+      if (rel <= 50) {
+        const next = rel + dice;
+        if (next <= 50) moves.push(idx);
+        else if (next <= 56) moves.push(idx); // enter/finish home with exact-or-less into home path
+        return;
+      }
+      // home stretch 51-55
+      if (rel + dice <= 56) moves.push(idx);
+    });
+    return moves;
+  };
+
+  const advanceLudoTurn = (players, turn, rolledSix) => {
+    if (rolledSix) {
+      setLudoTurn(turn);
+      setLudoDice(null);
+      setLudoRolled(false);
+      setLudoMessage(`${players[turn].name} rolled a 6 — roll again!`);
+      return;
+    }
+    const next = (turn + 1) % players.length;
+    setLudoTurn(next);
+    setLudoDice(null);
+    setLudoRolled(false);
+    setLudoMessage(`${players[next].name}'s turn — roll the dice!`);
+  };
+
+  const rollLudoDice = () => {
+    if (ludoWinner || ludoRolled) return;
+    const dice = Math.floor(Math.random() * 6) + 1;
+    setLudoDice(dice);
+    setLudoRolled(true);
+    const moves = getLudoValidMoves(ludoPlayers, ludoTurn, dice);
+    if (moves.length === 0) {
+      setLudoMessage(`Rolled ${dice} — no moves. Passing...`);
+      setTimeout(() => advanceLudoTurn(ludoPlayers, ludoTurn, false), 700);
+    } else {
+      setLudoMessage(`Rolled ${dice} — tap a glowing token to move`);
+    }
+  };
+
+  const moveLudoToken = (tokenIdx) => {
+    if (ludoWinner || !ludoRolled || !ludoDice) return;
+    const valid = getLudoValidMoves(ludoPlayers, ludoTurn, ludoDice);
+    if (!valid.includes(tokenIdx)) return;
+
+    const dice = ludoDice;
+    const players = ludoPlayers.map(p => ({ ...p, tokens: [...p.tokens] }));
+    const me = players[ludoTurn];
+    let rel = me.tokens[tokenIdx];
+    let msg = '';
+
+    if (rel === -1 && dice === 6) {
+      rel = 0;
+      msg = `${me.name} entered the board!`;
+    } else if (rel >= 0 && rel <= 50) {
+      const next = rel + dice;
+      if (next <= 50) {
+        rel = next;
+        const abs = ludoAbs(ludoTurn, rel);
+        // Capture opponents
+        if (!ludoIsSafe(abs)) {
+          players.forEach((p, pi) => {
+            if (pi === ludoTurn) return;
+            p.tokens = p.tokens.map(t => {
+              if (t >= 0 && t <= 50 && ludoAbs(pi, t) === abs) {
+                msg = `${me.name} captured ${p.name}'s token!`;
+                return -1;
+              }
+              return t;
+            });
+          });
+        }
+      } else {
+        rel = next; // 51-56 home / finish
+        if (rel === 56) msg = `${me.name} got a token home!`;
+        else msg = `${me.name} entered the home stretch!`;
+      }
+    } else if (rel >= 51 && rel <= 55) {
+      rel = rel + dice;
+      if (rel === 56) msg = `${me.name} got a token home!`;
+    }
+
+    me.tokens[tokenIdx] = rel;
+    setLudoPlayers(players);
+
+    if (me.tokens.every(t => t === 56)) {
+      setLudoWinner(me.name);
+      setLudoMessage(`${me.name} wins Ludo!`);
+      awardMiniGameRewards(60, 5, 1);
+      setGameData(prev => ({ ...prev, gamesWon: (prev.gamesWon || 0) + 1 }));
+      return;
+    }
+
+    setLudoMessage(msg || `${me.name} moved`);
+    advanceLudoTurn(players, ludoTurn, dice === 6);
+  };
+
   const initializeTicTacToe = () => {
     setTicTacToeBoard(Array(9).fill(null));
     setTicTacToePlayer('X');
@@ -3610,15 +3953,11 @@ const BondPetGame = () => {
 
   const initializeCheckers = () => {
     const board = Array(8).fill(null).map(() => Array(8).fill(null));
-    // Set up checkers board
     for (let row = 0; row < 8; row++) {
       for (let col = 0; col < 8; col++) {
         if ((row + col) % 2 === 1) {
-          if (row < 3) {
-            board[row][col] = { type: 'red', king: false };
-          } else if (row > 4) {
-            board[row][col] = { type: 'black', king: false };
-          }
+          if (row < 3) board[row][col] = { type: 'red', king: false };
+          else if (row > 4) board[row][col] = { type: 'black', king: false };
         }
       }
     }
@@ -3626,13 +3965,218 @@ const BondPetGame = () => {
     setCheckersPlayer('red');
     setCheckersSelected(null);
     setCheckersWinner(null);
+    setCheckersLegalTargets([]);
+    setCheckersJumping(null);
+    setCheckersMessage('Red moves first — captures are forced');
+  };
+
+  const checkersClone = (board) => board.map(r => r.map(c => (c ? { ...c } : null)));
+
+  const checkersDirs = (piece) => {
+    if (piece.king) return [[-1, -1], [-1, 1], [1, -1], [1, 1]];
+    return piece.type === 'red' ? [[1, -1], [1, 1]] : [[-1, -1], [-1, 1]];
+  };
+
+  const getCheckersJumpsFrom = (board, row, col) => {
+    const piece = board[row]?.[col];
+    if (!piece) return [];
+    const jumps = [];
+    for (const [dr, dc] of checkersDirs(piece)) {
+      const mr = row + dr;
+      const mc = col + dc;
+      const lr = row + dr * 2;
+      const lc = col + dc * 2;
+      if (lr < 0 || lr > 7 || lc < 0 || lc > 7) continue;
+      const mid = board[mr]?.[mc];
+      if (mid && mid.type !== piece.type && !board[lr][lc]) {
+        jumps.push({ row: lr, col: lc, midRow: mr, midCol: mc });
+      }
+    }
+    return jumps;
+  };
+
+  const getCheckersStepsFrom = (board, row, col) => {
+    const piece = board[row]?.[col];
+    if (!piece) return [];
+    const steps = [];
+    for (const [dr, dc] of checkersDirs(piece)) {
+      const nr = row + dr;
+      const nc = col + dc;
+      if (nr < 0 || nr > 7 || nc < 0 || nc > 7) continue;
+      if (!board[nr][nc]) steps.push({ row: nr, col: nc });
+    }
+    return steps;
+  };
+
+  const getAllCheckersJumps = (board, player) => {
+    const all = [];
+    for (let r = 0; r < 8; r++) {
+      for (let c = 0; c < 8; c++) {
+        if (board[r][c]?.type === player) {
+          const jumps = getCheckersJumpsFrom(board, r, c);
+          jumps.forEach(j => all.push({ fromRow: r, fromCol: c, ...j }));
+        }
+      }
+    }
+    return all;
+  };
+
+  const getCheckersMovesForPiece = (board, row, col, player, jumping) => {
+    const piece = board[row]?.[col];
+    if (!piece || piece.type !== player) return [];
+    if (jumping && (jumping.row !== row || jumping.col !== col)) return [];
+    const jumps = getCheckersJumpsFrom(board, row, col);
+    if (jumping) return jumps;
+    const anyJumps = getAllCheckersJumps(board, player);
+    if (anyJumps.length > 0) return jumps;
+    return getCheckersStepsFrom(board, row, col);
+  };
+
+  const promoteCheckersIfNeeded = (piece, row) => {
+    if (piece.king) return piece;
+    if (piece.type === 'red' && row === 7) return { ...piece, king: true };
+    if (piece.type === 'black' && row === 0) return { ...piece, king: true };
+    return piece;
+  };
+
+  const countCheckersPieces = (board, player) => {
+    let n = 0;
+    for (let r = 0; r < 8; r++) {
+      for (let c = 0; c < 8; c++) {
+        if (board[r][c]?.type === player) n++;
+      }
+    }
+    return n;
+  };
+
+  const playerHasCheckersMove = (board, player) => {
+    if (getAllCheckersJumps(board, player).length > 0) return true;
+    for (let r = 0; r < 8; r++) {
+      for (let c = 0; c < 8; c++) {
+        if (board[r][c]?.type === player && getCheckersStepsFrom(board, r, c).length > 0) return true;
+      }
+    }
+    return false;
+  };
+
+  const finishCheckersWin = (winner) => {
+    setCheckersWinner(winner);
+    setCheckersMessage(`${winner === 'red' ? 'Red' : 'Black'} wins!`);
+    awardMiniGameRewards(50, 5, 1);
+  };
+
+  const handleCheckersClick = (row, col) => {
+    if (checkersWinner || !checkersBoard.length) return;
+    const board = checkersBoard;
+    const player = checkersPlayer;
+
+    if (checkersJumping) {
+      const jumps = getCheckersJumpsFrom(board, checkersJumping.row, checkersJumping.col);
+      const hit = jumps.find(j => j.row === row && j.col === col);
+      if (!hit) return;
+      const newBoard = checkersClone(board);
+      let piece = newBoard[checkersJumping.row][checkersJumping.col];
+      newBoard[checkersJumping.row][checkersJumping.col] = null;
+      newBoard[hit.midRow][hit.midCol] = null;
+      piece = promoteCheckersIfNeeded(piece, row);
+      newBoard[row][col] = piece;
+      const more = getCheckersJumpsFrom(newBoard, row, col);
+      setCheckersBoard(newBoard);
+      if (more.length > 0) {
+        setCheckersJumping({ row, col });
+        setCheckersSelected({ row, col });
+        setCheckersLegalTargets(more.map(j => ({ row: j.row, col: j.col })));
+        setCheckersMessage('Continue jumping!');
+        return;
+      }
+      setCheckersJumping(null);
+      setCheckersSelected(null);
+      setCheckersLegalTargets([]);
+      const opponent = player === 'red' ? 'black' : 'red';
+      if (countCheckersPieces(newBoard, opponent) === 0 || !playerHasCheckersMove(newBoard, opponent)) {
+        finishCheckersWin(player);
+      } else {
+        setCheckersPlayer(opponent);
+        setCheckersMessage(getAllCheckersJumps(newBoard, opponent).length ? 'Capture required!' : `${opponent === 'red' ? 'Red' : 'Black'}'s turn`);
+      }
+      return;
+    }
+
+    if (checkersSelected && checkersSelected.row === row && checkersSelected.col === col) {
+      setCheckersSelected(null);
+      setCheckersLegalTargets([]);
+      return;
+    }
+
+    const targets = checkersSelected
+      ? getCheckersMovesForPiece(board, checkersSelected.row, checkersSelected.col, player, null)
+      : [];
+    const moveHit = targets.find(t => t.row === row && t.col === col);
+
+    if (checkersSelected && moveHit) {
+      const newBoard = checkersClone(board);
+      let piece = newBoard[checkersSelected.row][checkersSelected.col];
+      const isJump = Math.abs(row - checkersSelected.row) === 2;
+      newBoard[checkersSelected.row][checkersSelected.col] = null;
+      if (isJump) {
+        const mr = (row + checkersSelected.row) / 2;
+        const mc = (col + checkersSelected.col) / 2;
+        newBoard[mr][mc] = null;
+      }
+      piece = promoteCheckersIfNeeded(piece, row);
+      newBoard[row][col] = piece;
+      setCheckersBoard(newBoard);
+
+      if (isJump) {
+        const more = getCheckersJumpsFrom(newBoard, row, col);
+        if (more.length > 0) {
+          setCheckersJumping({ row, col });
+          setCheckersSelected({ row, col });
+          setCheckersLegalTargets(more.map(j => ({ row: j.row, col: j.col })));
+          setCheckersMessage('Continue jumping!');
+          return;
+        }
+      }
+
+      setCheckersSelected(null);
+      setCheckersLegalTargets([]);
+      setCheckersJumping(null);
+      const opponent = player === 'red' ? 'black' : 'red';
+      if (countCheckersPieces(newBoard, opponent) === 0 || !playerHasCheckersMove(newBoard, opponent)) {
+        finishCheckersWin(player);
+      } else {
+        setCheckersPlayer(opponent);
+        setCheckersMessage(getAllCheckersJumps(newBoard, opponent).length ? 'Capture required!' : `${opponent === 'red' ? 'Red' : 'Black'}'s turn`);
+      }
+      return;
+    }
+
+    if (board[row][col]?.type === player) {
+      const moves = getCheckersMovesForPiece(board, row, col, player, null);
+      const anyJumps = getAllCheckersJumps(board, player);
+      if (anyJumps.length > 0 && moves.length === 0) {
+        setCheckersMessage('You must capture with another piece');
+        return;
+      }
+      setCheckersSelected({ row, col });
+      setCheckersLegalTargets(moves.map(m => ({ row: m.row, col: m.col })));
+    } else {
+      setCheckersSelected(null);
+      setCheckersLegalTargets([]);
+    }
   };
 
   const initializeMiniGolf = () => {
     setGolfHole(1);
     setGolfScore(0);
     setGolfStrokes(0);
-    setGolfBallPos({ x: 50, y: 50 });
+    setGolfBallPos({ x: 20, y: 70 });
+    setGolfVel({ x: 0, y: 0 });
+    setGolfAim(-40);
+    setGolfPower(45);
+    setGolfMoving(false);
+    setGolfDone(false);
+    golfBallRef.current = { x: 20, y: 70, vx: 0, vy: 0 };
   };
 
   const dropPiece = (col) => {
@@ -3707,65 +4251,227 @@ const BondPetGame = () => {
   };
 
   // Chess Functions
+  const CHESS_SYMBOLS = {
+    white: { king: '♔', queen: '♕', rook: '♖', bishop: '♗', knight: '♘', pawn: '♙' },
+    black: { king: '♚', queen: '♛', rook: '♜', bishop: '♝', knight: '♞', pawn: '♟' }
+  };
+
+  const chessClone = (board) => board.map(r => r.map(c => (c ? { ...c } : null)));
+
   const initializeChess = () => {
     const board = Array(8).fill(null).map(() => Array(8).fill(null));
-    // Place pieces - using Unicode chess symbols
-    const blackPieces = ['♜', '♞', '♝', '♛', '♚', '♝', '♞', '♜'];
-    const whitePieces = ['♖', '♘', '♗', '♕', '♔', '♗', '♘', '♖'];
+    const back = ['rook', 'knight', 'bishop', 'queen', 'king', 'bishop', 'knight', 'rook'];
     for (let i = 0; i < 8; i++) {
-      board[0][i] = { type: blackPieces[i], color: 'black' };
-      board[1][i] = { type: '♟', color: 'black' };
-      board[6][i] = { type: '♙', color: 'white' };
-      board[7][i] = { type: whitePieces[i], color: 'white' };
+      board[0][i] = { role: back[i], color: 'black', type: CHESS_SYMBOLS.black[back[i]] };
+      board[1][i] = { role: 'pawn', color: 'black', type: CHESS_SYMBOLS.black.pawn };
+      board[6][i] = { role: 'pawn', color: 'white', type: CHESS_SYMBOLS.white.pawn };
+      board[7][i] = { role: back[i], color: 'white', type: CHESS_SYMBOLS.white[back[i]] };
     }
     setChessBoard(board);
     setChessCurrentPlayer('white');
     setChessSelectedSquare(null);
+    setChessLegalTargets([]);
     setChessGameOver(false);
     setChessWinner(null);
+    setChessEndReason(null);
+    setChessStatusMsg("White's turn");
+    setChessLastMove(null);
+    setChessFlipped(false);
+    setChessCaptured({ white: [], black: [] });
+  };
+
+  const findChessKing = (board, color) => {
+    for (let r = 0; r < 8; r++) {
+      for (let c = 0; c < 8; c++) {
+        if (board[r][c]?.role === 'king' && board[r][c]?.color === color) return [r, c];
+      }
+    }
+    return null;
+  };
+
+  const rayMoves = (board, row, col, deltas) => {
+    const piece = board[row][col];
+    const moves = [];
+    for (const [dr, dc] of deltas) {
+      let r = row + dr;
+      let c = col + dc;
+      while (r >= 0 && r < 8 && c >= 0 && c < 8) {
+        const target = board[r][c];
+        if (!target) moves.push([r, c]);
+        else {
+          if (target.color !== piece.color) moves.push([r, c]);
+          break;
+        }
+        r += dr;
+        c += dc;
+      }
+    }
+    return moves;
+  };
+
+  const getRawChessMoves = (board, row, col) => {
+    const piece = board[row]?.[col];
+    if (!piece) return [];
+    const moves = [];
+    const { role, color } = piece;
+
+    if (role === 'pawn') {
+      const dir = color === 'white' ? -1 : 1;
+      const start = color === 'white' ? 6 : 1;
+      const fr = row + dir;
+      if (fr >= 0 && fr < 8 && !board[fr][col]) {
+        moves.push([fr, col]);
+        if (row === start && !board[row + dir * 2][col]) moves.push([row + dir * 2, col]);
+      }
+      for (const dc of [-1, 1]) {
+        const c = col + dc;
+        if (fr >= 0 && fr < 8 && c >= 0 && c < 8 && board[fr][c] && board[fr][c].color !== color) {
+          moves.push([fr, c]);
+        }
+      }
+    } else if (role === 'knight') {
+      for (const [dr, dc] of [[-2, -1], [-2, 1], [-1, -2], [-1, 2], [1, -2], [1, 2], [2, -1], [2, 1]]) {
+        const r = row + dr;
+        const c = col + dc;
+        if (r < 0 || r > 7 || c < 0 || c > 7) continue;
+        if (!board[r][c] || board[r][c].color !== color) moves.push([r, c]);
+      }
+    } else if (role === 'bishop') {
+      return rayMoves(board, row, col, [[-1, -1], [-1, 1], [1, -1], [1, 1]]);
+    } else if (role === 'rook') {
+      return rayMoves(board, row, col, [[-1, 0], [1, 0], [0, -1], [0, 1]]);
+    } else if (role === 'queen') {
+      return rayMoves(board, row, col, [[-1, -1], [-1, 1], [1, -1], [1, 1], [-1, 0], [1, 0], [0, -1], [0, 1]]);
+    } else if (role === 'king') {
+      for (let dr = -1; dr <= 1; dr++) {
+        for (let dc = -1; dc <= 1; dc++) {
+          if (!dr && !dc) continue;
+          const r = row + dr;
+          const c = col + dc;
+          if (r < 0 || r > 7 || c < 0 || c > 7) continue;
+          if (!board[r][c] || board[r][c].color !== color) moves.push([r, c]);
+        }
+      }
+    }
+    return moves;
+  };
+
+  const isSquareAttacked = (board, row, col, byColor) => {
+    for (let r = 0; r < 8; r++) {
+      for (let c = 0; c < 8; c++) {
+        const p = board[r][c];
+        if (!p || p.color !== byColor) continue;
+        if (p.role === 'pawn') {
+          const dir = byColor === 'white' ? -1 : 1;
+          if (row === r + dir && (col === c - 1 || col === c + 1)) return true;
+          continue;
+        }
+        if (p.role === 'king') {
+          if (Math.abs(r - row) <= 1 && Math.abs(c - col) <= 1) return true;
+          continue;
+        }
+        const attacks = getRawChessMoves(board, r, c);
+        if (attacks.some(([ar, ac]) => ar === row && ac === col)) return true;
+      }
+    }
+    return false;
+  };
+
+  const isInCheck = (board, color) => {
+    const king = findChessKing(board, color);
+    if (!king) return true;
+    return isSquareAttacked(board, king[0], king[1], color === 'white' ? 'black' : 'white');
+  };
+
+  const applyChessMove = (board, fromR, fromC, toR, toC) => {
+    const next = chessClone(board);
+    let piece = next[fromR][fromC];
+    next[fromR][fromC] = null;
+    if (piece.role === 'pawn' && (toR === 0 || toR === 7)) {
+      piece = { role: 'queen', color: piece.color, type: CHESS_SYMBOLS[piece.color].queen };
+    }
+    next[toR][toC] = piece;
+    return next;
+  };
+
+  const getLegalChessMoves = (board, row, col) => {
+    const piece = board[row]?.[col];
+    if (!piece) return [];
+    return getRawChessMoves(board, row, col).filter(([tr, tc]) => {
+      const next = applyChessMove(board, row, col, tr, tc);
+      return !isInCheck(next, piece.color);
+    });
+  };
+
+  const hasAnyLegalChessMove = (board, color) => {
+    for (let r = 0; r < 8; r++) {
+      for (let c = 0; c < 8; c++) {
+        if (board[r][c]?.color === color && getLegalChessMoves(board, r, c).length > 0) return true;
+      }
+    }
+    return false;
   };
 
   const handleChessSquareClick = (row, col) => {
     if (chessGameOver || !chessBoard) return;
-    const square = chessBoard[row][col];
-    
+    const board = chessBoard;
+    const square = board[row][col];
+
     if (chessSelectedSquare) {
       const [selRow, selCol] = chessSelectedSquare;
-      const selectedPiece = chessBoard[selRow][selCol];
-      
-      // Simple move validation - allow any move to any empty square or capture
-      if (selectedPiece && selectedPiece.color === chessCurrentPlayer) {
-        const newBoard = chessBoard.map(r => [...r]);
-        newBoard[row][col] = selectedPiece;
-        newBoard[selRow][selCol] = null;
+      const legal = chessLegalTargets.some(([r, c]) => r === row && c === col);
+      if (legal) {
+        const captured = board[row][col];
+        const newBoard = applyChessMove(board, selRow, selCol, row, col);
         setChessBoard(newBoard);
         setChessSelectedSquare(null);
-        setChessCurrentPlayer(chessCurrentPlayer === 'white' ? 'black' : 'white');
-        
-        // Simple check for game end (checkmate simulation - check if king is captured)
-        if (selectedPiece.type === '♚' || selectedPiece.type === '♔') {
-          setChessGameOver(true);
-          setChessWinner(chessCurrentPlayer);
-          const coinsEarned = 100;
-          const verse = awardBibleVerse(true);
-          setGameData(prev => ({
+        setChessLegalTargets([]);
+        setChessLastMove({ from: [selRow, selCol], to: [row, col] });
+        if (captured) {
+          setChessCaptured(prev => ({
             ...prev,
-            coins: prev.coins + coinsEarned,
-            gamesWon: prev.gamesWon + 1,
-            pet: { ...prev.pet, happiness: Math.min(100, prev.pet.happiness + 15) },
-            sharedProgress: Math.min(100, prev.sharedProgress + 15)
+            [chessCurrentPlayer]: [...prev[chessCurrentPlayer], captured.type]
           }));
-          if (verse) {
-            setTimeout(() => {
-              alert(`🎉 Checkmate! Bible Verse Prize!\n\n"${verse.verse}"\n${verse.reference}\n\nReflect: ${HUMILITY_REFLECTIONS[Math.floor(Math.random() * HUMILITY_REFLECTIONS.length)]}`);
-            }, 100);
-          }
         }
-      } else {
-        setChessSelectedSquare(null);
+        const opponent = chessCurrentPlayer === 'white' ? 'black' : 'white';
+        const oppInCheck = isInCheck(newBoard, opponent);
+        const oppHasMove = hasAnyLegalChessMove(newBoard, opponent);
+        if (!oppHasMove) {
+          setChessGameOver(true);
+          if (oppInCheck) {
+            setChessWinner(chessCurrentPlayer);
+            setChessEndReason('checkmate');
+            setChessStatusMsg(`${chessCurrentPlayer === 'white' ? 'White' : 'Black'} wins by checkmate!`);
+            awardMiniGameRewards(100, 8, 1);
+          } else {
+            setChessWinner(null);
+            setChessEndReason('stalemate');
+            setChessStatusMsg('Stalemate — draw!');
+            awardMiniGameRewards(30, 3, 1);
+          }
+        } else {
+          setChessCurrentPlayer(opponent);
+          setChessStatusMsg(oppInCheck
+            ? `${opponent === 'white' ? 'White' : 'Black'} is in check!`
+            : `${opponent === 'white' ? 'White' : 'Black'}'s turn`);
+        }
+        return;
       }
-    } else if (square && square.color === chessCurrentPlayer) {
+      if (square && square.color === chessCurrentPlayer) {
+        const moves = getLegalChessMoves(board, row, col);
+        setChessSelectedSquare([row, col]);
+        setChessLegalTargets(moves);
+        return;
+      }
+      setChessSelectedSquare(null);
+      setChessLegalTargets([]);
+      return;
+    }
+
+    if (square && square.color === chessCurrentPlayer) {
+      const moves = getLegalChessMoves(board, row, col);
       setChessSelectedSquare([row, col]);
+      setChessLegalTargets(moves);
     }
   };
 
@@ -3828,130 +4534,279 @@ const BondPetGame = () => {
 
   if (gameState === 'boardGames') {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-orange-200 via-red-200 to-pink-200 p-4">
-        <div className="max-w-4xl mx-auto">
-          <div className="bg-white rounded-2xl p-6 mb-4 shadow-lg">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-3xl font-bold text-orange-600">🎲 Board Games</h2>
-              <button onClick={() => setGameState('pet')}
-                className="bg-gray-500 text-white px-4 py-2 rounded-lg font-semibold hover:bg-gray-600">
-                ← Back
-              </button>
-            </div>
+      <GameShell bgClass="bg-gradient-to-br from-orange-400 via-rose-400 to-fuchsia-500" maxWidth="max-w-4xl">
+        <GameCard>
+          <GameHeader title="Board Games" titleClass="text-rose-700" onBack={() => setGameState('pet')} />
             
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mb-6">
-              <div className="bg-gradient-to-br from-blue-100 to-purple-100 rounded-xl p-4 sm:p-6">
-                <h3 className="text-xl sm:text-2xl font-bold mb-2">❌ Tic-Tac-Toe</h3>
-                <p className="text-gray-600 mb-4 text-sm">Classic 3x3 strategy game. Win to earn 30 coins!</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5 mb-6">
+              <div className="menu-tile bg-gradient-to-br from-sky-200 to-blue-300">
+                <h3 className="game-title text-xl sm:text-2xl font-bold mb-2 text-sky-900">Tic-Tac-Toe</h3>
+                <p className="text-sky-900/70 mb-4 text-sm font-semibold">Classic 3×3. Win for 30 coins!</p>
                 <button onClick={() => {
                   initializeTicTacToe();
                   setGameState('ticTacToe');
                 }}
-                  className="w-full bg-blue-500 text-white py-3 rounded-lg font-semibold active:bg-blue-600 min-h-[48px]">
+                  className="ctrl-btn w-full bg-sky-600 text-white py-3">
                   Play Tic-Tac-Toe
                 </button>
               </div>
 
-              <div className="bg-gradient-to-br from-red-100 to-yellow-100 rounded-xl p-4 sm:p-6">
-                <h3 className="text-xl sm:text-2xl font-bold mb-2">🔴 Connect 4</h3>
-                <p className="text-gray-600 mb-4 text-sm">Drop pieces and connect 4 in a row. Win to earn 50 coins!</p>
+              <div className="menu-tile bg-gradient-to-br from-rose-200 to-orange-300 border-rose-300">
+                <h3 className="game-title text-xl sm:text-2xl font-bold mb-2 text-rose-900">Ludo</h3>
+                <p className="text-rose-900/70 mb-4 text-sm font-semibold">Pass the device — race tokens home.</p>
+                <div className="flex gap-2 mb-3">
+                  {[2, 3, 4].map(n => (
+                    <button key={n} type="button" onClick={() => setLudoPlayerCount(n)}
+                      className={`flex-1 py-2 rounded-xl font-bold text-sm min-h-[40px] ${
+                        ludoPlayerCount === n ? 'bg-rose-600 text-white shadow' : 'bg-white/80 text-rose-700 border border-rose-200'
+                      }`}>
+                      {n}P
+                    </button>
+                  ))}
+                </div>
+                <button onClick={() => {
+                  initializeLudo(ludoPlayerCount);
+                  setGameState('ludo');
+                }}
+                  className="ctrl-btn w-full bg-rose-600 text-white py-3">
+                  Play Ludo
+                </button>
+              </div>
+
+              <div className="menu-tile bg-gradient-to-br from-red-200 to-amber-200">
+                <h3 className="game-title text-xl sm:text-2xl font-bold mb-2 text-red-900">Connect 4</h3>
+                <p className="text-red-900/70 mb-4 text-sm font-semibold">Connect 4 in a row. Win for 50 coins!</p>
                 <button onClick={() => {
                   initializeConnect4();
                   setGameState('connect4');
                 }}
-                  className="w-full bg-red-500 text-white py-3 rounded-lg font-semibold active:bg-red-600 min-h-[48px]">
+                  className="ctrl-btn w-full bg-red-500 text-white py-3">
                   Play Connect 4
                 </button>
               </div>
 
-              <div className="bg-gradient-to-br from-amber-100 to-orange-100 rounded-xl p-4 sm:p-6">
-                <h3 className="text-xl sm:text-2xl font-bold mb-2">♔ Chess</h3>
-                <p className="text-gray-600 mb-4 text-sm">Classic strategy game. Checkmate to win!</p>
+              <div className="menu-tile bg-gradient-to-br from-teal-200 to-cyan-300">
+                <h3 className="game-title text-xl sm:text-2xl font-bold mb-2 text-teal-900">Chess</h3>
+                <p className="text-teal-900/70 mb-4 text-sm font-semibold">Legal moves, check & mate. 100 coins!</p>
                 <button onClick={() => {
                   initializeChess();
                   setGameState('chess');
                 }}
-                  className="w-full bg-amber-600 text-white py-3 rounded-lg font-semibold active:bg-amber-700 min-h-[48px]">
+                  className="ctrl-btn w-full bg-teal-600 text-white py-3">
                   Play Chess
                 </button>
               </div>
 
-              <div className="bg-gradient-to-br from-purple-100 to-pink-100 rounded-xl p-4 sm:p-6">
-                <h3 className="text-xl sm:text-2xl font-bold mb-2">⚫ Checkers</h3>
-                <p className="text-gray-600 mb-4 text-sm">Jump pieces and capture all opponents!</p>
+              <div className="menu-tile bg-gradient-to-br from-emerald-200 to-lime-200">
+                <h3 className="game-title text-xl sm:text-2xl font-bold mb-2 text-emerald-950">Checkers</h3>
+                <p className="text-emerald-900/70 mb-4 text-sm font-semibold">Forced jumps & kings. Win for 50 coins!</p>
                 <button onClick={() => {
                   initializeCheckers();
                   setGameState('checkers');
                 }}
-                  className="w-full bg-purple-600 text-white py-3 rounded-lg font-semibold active:bg-purple-700 min-h-[48px]">
+                  className="ctrl-btn w-full bg-emerald-600 text-white py-3">
                   Play Checkers
                 </button>
               </div>
 
-              <div className="bg-gradient-to-br from-green-100 to-emerald-100 rounded-xl p-4 sm:p-6">
-                <h3 className="text-xl sm:text-2xl font-bold mb-2">⛳ Mini Golf</h3>
-                <p className="text-gray-600 mb-4 text-sm">Sink the ball in as few strokes as possible!</p>
+              <div className="menu-tile bg-gradient-to-br from-lime-200 to-green-300">
+                <h3 className="game-title text-xl sm:text-2xl font-bold mb-2 text-green-900">Mini Golf</h3>
+                <p className="text-green-900/70 mb-4 text-sm font-semibold">Aim, power, sink it!</p>
                 <button onClick={() => {
                   initializeMiniGolf();
                   setGameState('miniGolf');
                 }}
-                  className="w-full bg-green-600 text-white py-3 rounded-lg font-semibold active:bg-green-700 min-h-[48px]">
+                  className="ctrl-btn w-full bg-green-600 text-white py-3">
                   Play Mini Golf
                 </button>
               </div>
 
-              <div className="bg-gradient-to-br from-indigo-100 to-blue-100 rounded-xl p-4 sm:p-6">
-                <h3 className="text-xl sm:text-2xl font-bold mb-2">📝 Word Games</h3>
-                <p className="text-gray-600 mb-4 text-sm">Hangman, Word Scramble, and more!</p>
-                <button onClick={() => {
-                  setGameState('wordGames');
-                }}
-                  className="w-full bg-indigo-600 text-white py-3 rounded-lg font-semibold active:bg-indigo-700 min-h-[48px]">
+              <div className="menu-tile bg-gradient-to-br from-indigo-200 to-blue-300">
+                <h3 className="game-title text-xl sm:text-2xl font-bold mb-2 text-indigo-900">Word Games</h3>
+                <p className="text-indigo-900/70 mb-4 text-sm font-semibold">Hangman, scramble & more</p>
+                <button onClick={() => setGameState('wordGames')}
+                  className="ctrl-btn w-full bg-indigo-600 text-white py-3">
                   Play Word Games
                 </button>
               </div>
 
-              <div className="bg-gradient-to-br from-yellow-100 to-orange-100 rounded-xl p-4 sm:p-6">
-                <h3 className="text-xl sm:text-2xl font-bold mb-2">👾 Arcade</h3>
-                <p className="text-gray-600 mb-4 text-sm">Pac-Man and Jetpack Joyride!</p>
+              <div className="menu-tile bg-gradient-to-br from-yellow-200 to-orange-300">
+                <h3 className="game-title text-xl sm:text-2xl font-bold mb-2 text-amber-900">Arcade</h3>
+                <p className="text-amber-900/70 mb-4 text-sm font-semibold">Pac-Man and Jetpack!</p>
                 <button onClick={() => setGameState('arcadeGames')}
-                  className="w-full bg-yellow-500 text-white py-3 rounded-lg font-semibold active:bg-yellow-600 min-h-[48px]">
+                  className="ctrl-btn w-full bg-amber-500 text-white py-3">
                   Open Arcade
                 </button>
               </div>
             </div>
 
-            <div className="border-t-2 border-gray-300 pt-4 sm:pt-6">
-              <h3 className="text-xl sm:text-2xl font-bold text-center mb-4 sm:mb-6">🎴 Card Games</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
-              <div className="bg-gradient-to-br from-pink-100 to-purple-100 rounded-xl p-4 sm:p-6">
-                  <h3 className="text-2xl font-bold mb-2">Never Have I Ever</h3>
-                  <p className="text-gray-600 mb-4">Reveal secrets and learn about each other! Play to bond and earn coins!</p>
+            <div className="border-t-2 border-rose-200/80 pt-4 sm:pt-6">
+              <h3 className="game-title text-xl sm:text-2xl font-bold text-center mb-4 sm:mb-6 text-fuchsia-800">Card Games</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
+              <div className="menu-tile bg-gradient-to-br from-pink-200 to-rose-300">
+                  <h3 className="game-title text-2xl font-bold mb-2 text-pink-900">Never Have I Ever</h3>
+                  <p className="text-pink-900/70 mb-4 text-sm font-semibold">Reveal secrets and bond together!</p>
                   <button onClick={() => {
                     setNeverHaveIEverIndex(0);
                     setGameState('neverHaveIEver');
                   }}
-                    className="w-full bg-pink-500 text-white py-3 rounded-lg font-semibold hover:bg-pink-600">
+                    className="ctrl-btn w-full bg-pink-500 text-white py-3">
                     Play Never Have I Ever
                   </button>
                 </div>
 
-                <div className="bg-gradient-to-br from-purple-100 to-indigo-100 rounded-xl p-4 sm:p-6">
-                  <h3 className="text-2xl font-bold mb-2">💕 Relationship Explorer</h3>
-                  <p className="text-gray-600 mb-4">Deep questions to explore your relationship, preferences, and connect deeper!</p>
+                <div className="menu-tile bg-gradient-to-br from-violet-200 to-fuchsia-300">
+                  <h3 className="game-title text-2xl font-bold mb-2 text-violet-950">Relationship Explorer</h3>
+                  <p className="text-violet-900/70 mb-4 text-sm font-semibold">Deep questions to connect more.</p>
                   <button onClick={() => {
                     setRelationshipExplorerIndex(0);
                     setGameState('relationshipExplorer');
                   }}
-                    className="w-full bg-purple-500 text-white py-3 rounded-lg font-semibold hover:bg-purple-600">
+                    className="ctrl-btn w-full bg-violet-600 text-white py-3">
                     Explore Relationship
                   </button>
                 </div>
               </div>
             </div>
-          </div>
-        </div>
-      </div>
+        </GameCard>
+      </GameShell>
+    );
+  }
+
+  if (gameState === 'ludo') {
+    const current = ludoPlayers[ludoTurn];
+    const validMoves = ludoRolled && ludoDice ? getLudoValidMoves(ludoPlayers, ludoTurn, ludoDice) : [];
+    const tokenLabel = (rel) => {
+      if (rel === -1) return 'Yard';
+      if (rel === 56) return 'Home ✓';
+      if (rel >= 51) return `Home ${rel - 50}/5`;
+      return `Track ${rel + 1}/51`;
+    };
+
+    return (
+      <GameShell bgClass="bg-gradient-to-br from-rose-500 via-orange-400 to-amber-300" maxWidth="max-w-2xl">
+        <GameCard className="!bg-gradient-to-b from-rose-50 to-amber-50">
+          <GameHeader title="Ludo" titleClass="text-rose-800" onBack={() => setGameState('boardGames')} />
+
+            <p className="text-center text-sm text-rose-800/80 mb-2 font-semibold">Pass-and-play — share one device</p>
+            <p className="text-center font-extrabold text-rose-700 mb-4 min-h-[24px]">{ludoMessage}</p>
+
+            {ludoWinner ? (
+              <div className="text-center p-6 bg-green-50 rounded-xl mb-4">
+                <div className="text-3xl font-bold mb-2">🏆 {ludoWinner} wins!</div>
+                <p className="text-green-700 mb-4">+60 coins and bond boost</p>
+                <button onClick={() => initializeLudo(ludoPlayerCount)}
+                  className="w-full bg-rose-500 text-white py-3 rounded-lg font-semibold min-h-[48px]">
+                  Play Again
+                </button>
+              </div>
+            ) : (
+              <>
+                <div className="flex justify-center items-center gap-4 mb-4">
+                  <div className={`w-20 h-20 rounded-2xl flex items-center justify-center text-4xl font-bold shadow-inner ${
+                    ludoDice ? 'bg-white border-4 border-rose-400' : 'bg-gray-100 border-2 border-dashed border-gray-300'
+                  }`}>
+                    {ludoDice || '?'}
+                  </div>
+                  <button
+                    onClick={rollLudoDice}
+                    disabled={ludoRolled}
+                    className={`px-6 py-4 rounded-xl font-bold min-h-[56px] ${
+                      ludoRolled ? 'bg-gray-300 text-gray-500' : 'bg-rose-500 text-white active:bg-rose-600'
+                    }`}
+                  >
+                    {ludoRolled ? 'Select a token' : `Roll — ${current?.emoji || ''} ${current?.name || ''}`}
+                  </button>
+                </div>
+
+                {/* Visual track board: 52 cells in a ring preview */}
+                <div className="mb-4 p-3 bg-rose-50 rounded-xl border-2 border-rose-200">
+                  <p className="text-xs font-semibold text-center text-rose-700 mb-2">Board track (tokens on path)</p>
+                  <div className="grid gap-0.5 max-w-lg mx-auto" style={{ gridTemplateColumns: 'repeat(13, minmax(0, 1fr))' }}>
+                    {Array.from({ length: 52 }).map((_, abs) => {
+                      const occupants = [];
+                      ludoPlayers.forEach((p, pi) => {
+                        p.tokens.forEach((rel, ti) => {
+                          if (rel >= 0 && rel <= 50 && ludoAbs(pi, rel) === abs) {
+                            occupants.push({ emoji: p.emoji, canMove: pi === ludoTurn && validMoves.includes(ti), pi, ti });
+                          }
+                        });
+                      });
+                      const isSafe = abs % 13 === 0;
+                      return (
+                        <div key={abs}
+                          className={`aspect-square rounded-sm text-[10px] flex items-center justify-center ${
+                            isSafe ? 'bg-yellow-200' : 'bg-white border border-rose-100'
+                          }`}
+                          title={`Cell ${abs}`}
+                        >
+                          {occupants[0] ? (
+                            <button type="button" disabled={!occupants[0].canMove}
+                              onClick={() => occupants[0].canMove && moveLudoToken(occupants[0].ti)}
+                              className={occupants[0].canMove ? 'ring-2 ring-yellow-400 rounded animate-pulse' : ''}>
+                              {occupants[0].emoji}
+                            </button>
+                          ) : (
+                            <span className="text-rose-200">{abs % 13 === 0 ? '★' : ''}</span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+                  {ludoPlayers.map((p, pi) => (
+                    <div key={p.id}
+                      className={`rounded-xl p-3 border-2 ${
+                        pi === ludoTurn && !ludoWinner ? 'border-rose-500 ring-2 ring-rose-200' : 'border-gray-200'
+                      } ${p.light}`}>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="font-bold">{p.emoji} {p.name}</span>
+                        <span className="text-xs text-gray-600">
+                          {p.tokens.filter(t => t === 56).length}/4 home
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-4 gap-2">
+                        {p.tokens.map((rel, ti) => {
+                          const canMove = pi === ludoTurn && validMoves.includes(ti);
+                          return (
+                            <button
+                              key={ti}
+                              type="button"
+                              disabled={!canMove}
+                              onClick={() => moveLudoToken(ti)}
+                              className={`rounded-lg p-2 text-center min-h-[64px] transition-all ${
+                                canMove
+                                  ? `${p.bg} text-white ring-4 ring-yellow-300 scale-105 animate-pulse`
+                                  : rel === 56
+                                  ? 'bg-emerald-200 text-emerald-800'
+                                  : 'bg-white/80 text-gray-700 border border-gray-200'
+                              }`}
+                            >
+                              <div className="text-lg">{p.emoji}</div>
+                              <div className="text-[10px] leading-tight font-semibold">{tokenLabel(rel)}</div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="text-xs text-gray-500 text-center space-y-1">
+                  <p>Need a <strong>6</strong> to leave the yard. Landing on others (except safe starts) sends them back.</p>
+                  <p>Roll a 6 for an extra turn. First to get all 4 tokens home wins.</p>
+                </div>
+              </>
+            )}
+
+            <button onClick={() => initializeLudo(ludoPlayerCount)}
+              className="ctrl-btn w-full mt-4 bg-rose-200 text-rose-900 py-3">
+              Restart Match
+            </button>
+        </GameCard>
+      </GameShell>
     );
   }
 
@@ -4085,70 +4940,153 @@ const BondPetGame = () => {
 
   if (gameState === 'chess') {
     if (!chessBoard) initializeChess();
-    
+
+    const files = chessFlipped ? ['h', 'g', 'f', 'e', 'd', 'c', 'b', 'a'] : ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
+    const ranks = chessFlipped ? [1, 2, 3, 4, 5, 6, 7, 8] : [8, 7, 6, 5, 4, 3, 2, 1];
+    const toBoardPos = (displayR, displayC) => {
+      if (!chessFlipped) return [displayR, displayC];
+      return [7 - displayR, 7 - displayC];
+    };
+    const kingPos = chessBoard ? findChessKing(chessBoard, chessCurrentPlayer) : null;
+    const kingInCheck = chessBoard && !chessGameOver && isInCheck(chessBoard, chessCurrentPlayer);
+
     return (
-      <div className="min-h-screen bg-gradient-to-br from-amber-200 via-orange-200 to-yellow-200 p-4">
-        <div className="max-w-2xl mx-auto">
-          <div className="bg-white rounded-2xl p-4 sm:p-6 shadow-lg">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-2xl font-bold text-amber-700">♔ Chess</h2>
-              <button onClick={() => setGameState('boardGames')}
-                className="bg-gray-500 text-white px-3 py-2 rounded-lg font-semibold hover:bg-gray-600 text-sm">
-                ← Back
+      <GameShell bgClass="bg-gradient-to-br from-teal-700 via-cyan-800 to-slate-900" maxWidth="max-w-lg">
+        <GameCard className="!bg-gradient-to-b from-cyan-50 via-white to-amber-50 border-2 border-teal-200/60">
+          <GameHeader
+            title="Chess"
+            titleClass="text-teal-900"
+            onBack={() => setGameState('boardGames')}
+            actions={
+              <button type="button" onClick={() => setChessFlipped(f => !f)}
+                className="ctrl-btn bg-gradient-to-r from-teal-500 to-cyan-500 text-white px-3 py-2 text-sm">
+                Flip
               </button>
+            }
+          />
+
+          <div className="flex items-center justify-between mb-2 min-h-[36px] px-2 py-1.5 rounded-xl bg-gradient-to-r from-slate-800 to-slate-700 text-white shadow-inner">
+            <div className="flex items-center gap-2">
+              <span className={`w-3 h-3 rounded-full ${chessCurrentPlayer === 'black' && !chessGameOver ? 'bg-lime-400 animate-pulse' : 'bg-slate-500'}`} />
+              <span className="text-sm font-bold">Black</span>
             </div>
-
-            {chessGameOver ? (
-              <div className="text-center mb-4">
-                <div className="text-2xl sm:text-3xl font-bold mb-2">
-                  {chessWinner === 'white' ? 'White Wins! ♔' : 'Black Wins! ♚'} Checkmate!
-                </div>
-                <div className="text-green-600 font-semibold text-sm sm:text-base mb-2">+100 Coins & Bible Verse Earned! 🪙✨</div>
-                <p className="text-gray-600 text-sm mb-4">
-                  {HUMILITY_REFLECTIONS[Math.floor(Math.random() * HUMILITY_REFLECTIONS.length)]}
-                </p>
-                <button onClick={initializeChess}
-                  className="mt-4 bg-amber-600 text-white px-6 py-3 rounded-lg font-semibold active:bg-amber-700 min-h-[48px]">
-                  Play Again
-                </button>
-              </div>
-            ) : (
-              <div className="text-center mb-4">
-                <div className="text-lg sm:text-xl font-semibold">
-                  {chessCurrentPlayer === 'white' ? '⚪ White' : '⚫ Black'}'s Turn
-                </div>
-                <p className="text-sm text-gray-600 mt-2">Click a piece to select, then click destination square</p>
-              </div>
-            )}
-
-            <div className="bg-amber-100 rounded-lg p-2 sm:p-4 overflow-x-auto">
-              <div className="inline-block min-w-max mx-auto">
-                <div className="grid grid-cols-8 gap-1">
-                  {chessBoard && chessBoard.map((row, rowIndex) => 
-                    row.map((cell, colIndex) => {
-                      const isSelected = chessSelectedSquare && chessSelectedSquare[0] === rowIndex && chessSelectedSquare[1] === colIndex;
-                      const isLight = (rowIndex + colIndex) % 2 === 0;
-                      return (
-                        <button
-                          key={`${rowIndex}-${colIndex}`}
-                          onClick={() => handleChessSquareClick(rowIndex, colIndex)}
-                          disabled={chessGameOver}
-                          className={`w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center text-2xl sm:text-3xl font-bold transition-all ${
-                            isSelected ? 'bg-blue-500 ring-4 ring-blue-300' :
-                            isLight ? 'bg-amber-100 hover:bg-amber-200' : 'bg-amber-800 hover:bg-amber-700'
-                          } ${chessGameOver ? 'opacity-50' : 'cursor-pointer'}`}
-                        >
-                          {cell ? cell.type : ''}
-                        </button>
-                      );
-                    })
-                  )}
-                </div>
-              </div>
+            <div className="flex flex-wrap justify-end gap-0.5 text-lg leading-none opacity-95">
+              {(chessCaptured.black || []).map((sym, i) => <span key={`b-${i}`}>{sym}</span>)}
             </div>
           </div>
-        </div>
-      </div>
+
+          {chessGameOver ? (
+            <div className="text-center mb-3 p-4 rounded-2xl bg-gradient-to-br from-lime-100 to-teal-100 border-2 border-teal-300">
+              <div className="game-title text-xl sm:text-2xl font-bold mb-1 text-teal-950">
+                {chessEndReason === 'stalemate'
+                  ? 'Stalemate — Draw'
+                  : `${chessWinner === 'white' ? 'White' : 'Black'} wins by checkmate!`}
+              </div>
+              <div className="text-teal-700 font-bold text-sm mb-3">
+                {chessEndReason === 'stalemate' ? '+30 coins' : '+100 coins'} earned
+              </div>
+              <button type="button" onClick={initializeChess}
+                className="ctrl-btn bg-gradient-to-r from-teal-500 to-cyan-500 text-white px-6 py-3">
+                Play Again
+              </button>
+            </div>
+          ) : (
+            <div className="text-center mb-2">
+              <p className={`text-sm font-bold min-h-[20px] ${kingInCheck ? 'text-rose-600 animate-pulse' : 'text-teal-800'}`}>
+                {chessStatusMsg}
+              </p>
+            </div>
+          )}
+
+          <div className="mx-auto rounded-2xl overflow-hidden shadow-xl"
+            style={{ maxWidth: 420, border: '5px solid #0f766e', boxShadow: '0 12px 40px rgba(15,118,110,0.45), inset 0 0 0 2px #5eead4' }}>
+            <div className="grid" style={{
+              gridTemplateColumns: '20px repeat(8, 1fr)',
+              gridTemplateRows: 'repeat(8, 1fr) 20px',
+              background: 'linear-gradient(135deg, #115e59, #0f766e)'
+            }}>
+              {ranks.map((rankLabel, displayR) => (
+                <React.Fragment key={`rank-${rankLabel}`}>
+                  <div className="flex items-center justify-center text-[10px] font-extrabold text-teal-100 select-none">
+                    {rankLabel}
+                  </div>
+                  {files.map((_, displayC) => {
+                    const [rowIndex, colIndex] = toBoardPos(displayR, displayC);
+                    const cell = chessBoard?.[rowIndex]?.[colIndex];
+                    const isSelected = chessSelectedSquare && chessSelectedSquare[0] === rowIndex && chessSelectedSquare[1] === colIndex;
+                    const isTarget = chessLegalTargets.some(([r, c]) => r === rowIndex && c === colIndex);
+                    const isLast = chessLastMove && (
+                      (chessLastMove.from[0] === rowIndex && chessLastMove.from[1] === colIndex) ||
+                      (chessLastMove.to[0] === rowIndex && chessLastMove.to[1] === colIndex)
+                    );
+                    const isKingCheck = kingInCheck && kingPos && kingPos[0] === rowIndex && kingPos[1] === colIndex;
+                    const isLight = (rowIndex + colIndex) % 2 === 0;
+                    let bg = isLight ? '#ecfdf5' : '#0d9488';
+                    if (isLast) bg = isLight ? '#fde68a' : '#d97706';
+                    if (isSelected) bg = '#38bdf8';
+                    if (isKingCheck) bg = '#fb7185';
+
+                    return (
+                      <button
+                        key={`${rowIndex}-${colIndex}`}
+                        type="button"
+                        onClick={() => handleChessSquareClick(rowIndex, colIndex)}
+                        disabled={chessGameOver}
+                        className="relative aspect-square flex items-center justify-center select-none active:brightness-95 transition-colors"
+                        style={{ backgroundColor: bg, fontSize: 'clamp(1.4rem, 8.5vw, 2.2rem)', lineHeight: 1 }}
+                        aria-label={`Square ${String.fromCharCode(97 + colIndex)}${8 - rowIndex}`}
+                      >
+                        {cell && (
+                          <span
+                            className="relative z-[1] leading-none drop-shadow"
+                            style={{
+                              color: cell.color === 'white' ? '#fffef8' : '#0f172a',
+                              textShadow: cell.color === 'white'
+                                ? '0 0 2px #0f172a, 1px 1px 0 #0f172a, -1px -1px 0 #0f172a'
+                                : '0 1px 0 rgba(255,255,255,0.35)',
+                              filter: cell.color === 'white' ? 'drop-shadow(0 2px 2px rgba(0,0,0,0.4))' : undefined
+                            }}
+                          >
+                            {cell.type}
+                          </span>
+                        )}
+                        {isTarget && !cell && (
+                          <span className="absolute w-[30%] h-[30%] rounded-full bg-cyan-950/40 ring-2 ring-white/50" />
+                        )}
+                        {isTarget && cell && (
+                          <span className="absolute inset-[5%] rounded-full border-[3px] border-rose-400/80 pointer-events-none shadow" />
+                        )}
+                      </button>
+                    );
+                  })}
+                </React.Fragment>
+              ))}
+              <div />
+              {files.map(f => (
+                <div key={`file-${f}`} className="flex items-center justify-center text-[10px] font-extrabold text-teal-100 select-none">
+                  {f}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between mt-2 min-h-[36px] px-2 py-1.5 rounded-xl bg-gradient-to-r from-amber-100 to-orange-100 text-amber-950 border border-amber-200">
+            <div className="flex items-center gap-2">
+              <span className={`w-3 h-3 rounded-full ${chessCurrentPlayer === 'white' && !chessGameOver ? 'bg-lime-500 animate-pulse ring-2 ring-lime-300' : 'bg-amber-400'}`} />
+              <span className="text-sm font-bold">White</span>
+            </div>
+            <div className="flex flex-wrap justify-end gap-0.5 text-lg leading-none">
+              {(chessCaptured.white || []).map((sym, i) => <span key={`w-${i}`}>{sym}</span>)}
+            </div>
+          </div>
+
+          {!chessGameOver && (
+            <p className="text-center text-xs text-teal-800/80 mt-3 font-semibold">
+              Tap a piece → highlighted square · Flip for pass-and-play
+            </p>
+          )}
+        </GameCard>
+      </GameShell>
     );
   }
 
@@ -4440,6 +5378,7 @@ const BondPetGame = () => {
   const initializeTetris = () => {
     setTetrisBoard(Array(20).fill(null).map(() => Array(10).fill(0)));
     setTetrisPiece(createNewTetrisPiece());
+    setTetrisNextPiece(createNewTetrisPiece());
     setTetrisScore(0);
     setTetrisLevel(1);
     setTetrisLines(0);
@@ -4539,37 +5478,59 @@ const BondPetGame = () => {
 
   if (gameState === 'puzzle') {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-pink-300 via-purple-300 to-indigo-300 p-4">
-        <div className="max-w-3xl mx-auto">
-          <div className="bg-white rounded-2xl p-4 mb-4 shadow-lg">
-            <div className="grid grid-cols-3 gap-4 mb-4">
-              <div className="text-center">
-                <div className="text-2xl font-bold text-purple-600">{score}</div>
-                <div className="text-xs text-gray-600">Score</div>
-                <div className="text-xs text-green-600">Goal: {targetScore}</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-blue-600">{moves}</div>
-                <div className="text-xs text-gray-600">Moves</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-orange-600">x{combo > 0 ? Math.min(combo, 5) : 1}</div>
-                <div className="text-xs text-gray-600">Combo</div>
-              </div>
+      <GameShell bgClass="bg-gradient-to-br from-rose-400 via-orange-300 to-amber-300" maxWidth="max-w-3xl">
+        <GameCard className="!bg-gradient-to-b from-rose-50 to-amber-50">
+            <div className="grid grid-cols-3 gap-3 mb-4">
+              <StatPill label="Score" value={score} tone="bg-rose-200 text-rose-950" />
+              <StatPill label="Moves" value={moves} tone="bg-sky-200 text-sky-950" />
+              <StatPill label="Combo" value={`x${combo > 0 ? Math.min(combo, 5) : 1}`} tone="bg-amber-200 text-amber-950" />
             </div>
+            <div className="text-center text-xs font-bold text-rose-800 mb-2">Goal: {targetScore}</div>
 
             <div className="mb-4">
-              <div className="w-full bg-gray-200 rounded-full h-3">
-                <div className="bg-gradient-to-r from-pink-500 to-purple-500 h-3 rounded-full transition-all"
+              <div className="w-full bg-rose-100 rounded-full h-3.5 border border-rose-200 overflow-hidden">
+                <div className="bg-gradient-to-r from-rose-500 via-orange-400 to-amber-400 h-full rounded-full transition-all"
                   style={{ width: `${Math.min((score / targetScore) * 100, 100)}%` }}></div>
               </div>
             </div>
 
-            <div className="text-xs text-gray-600 text-center mb-4">
-              💕 Match 3 or more colors to score points! Perfect for relaxing and bonding!
+            <div className="text-xs text-rose-900/70 text-center mb-2 font-semibold">
+              Match 3+ · pick a power-up, then tap a gem
+            </div>
+
+            <div className="grid grid-cols-3 gap-2 mb-4">
+              {[
+                { id: 'shuffle', label: 'Shuffle', icon: '🔀', tone: 'from-sky-400 to-blue-500' },
+                { id: 'hammer', label: 'Hammer', icon: '🔨', tone: 'from-amber-400 to-orange-500' },
+                { id: 'colorBomb', label: 'Bomb', icon: '💥', tone: 'from-rose-400 to-pink-500' }
+              ].map(p => (
+                <button
+                  key={p.id}
+                  type="button"
+                  disabled={powerups[p.id] <= 0 || animating}
+                  onClick={() => {
+                    if (p.id === 'shuffle') {
+                      usePowerup('shuffle', 0, 0);
+                    } else {
+                      setSelectedPowerup(selectedPowerup === p.id ? null : p.id);
+                    }
+                  }}
+                  className={`ctrl-btn py-2 px-1 text-sm border-2 ${
+                    selectedPowerup === p.id
+                      ? `bg-gradient-to-br ${p.tone} text-white border-white ring-2 ring-offset-1 ring-rose-400`
+                      : powerups[p.id] > 0
+                      ? 'bg-white border-rose-200 text-rose-900'
+                      : 'bg-stone-100 border-stone-200 text-stone-400'
+                  }`}
+                >
+                  <div>{p.icon} {p.label}</div>
+                  <div className="text-xs">x{powerups[p.id]}</div>
+                </button>
+              ))}
             </div>
             
-            <div className="bg-gray-100 rounded-xl p-1 sm:p-2 mb-4 overflow-x-auto">
+            <div className="rounded-2xl p-2 sm:p-3 mb-4 overflow-x-auto border-2 border-rose-200 shadow-inner"
+              style={{ background: 'linear-gradient(160deg,#ffe4e6,#ffedd5)' }}>
               <div className="inline-block min-w-max mx-auto">
                 {puzzleBoard.map((row, i) => (
                   <div key={i} className="flex justify-center">
@@ -4582,6 +5543,10 @@ const BondPetGame = () => {
                           key={`${i}-${j}`}
                           onClick={() => {
                             if (animating) return;
+                            if (selectedPowerup === 'hammer' || selectedPowerup === 'colorBomb') {
+                              usePowerup(selectedPowerup, i, j);
+                              return;
+                            }
                             if (!selectedCell) {
                               setSelectedCell({ row: i, col: j });
                             } else {
@@ -4594,15 +5559,15 @@ const BondPetGame = () => {
                             }
                           }}
                           disabled={animating && !isSelected}
-                          className={`w-10 h-10 sm:w-11 sm:h-11 m-0.5 sm:m-1 text-lg sm:text-xl rounded-lg transition-all duration-200 active:scale-95 ${
+                          className={`w-10 h-10 sm:w-11 sm:h-11 m-0.5 sm:m-1 text-lg sm:text-xl rounded-xl transition-all duration-200 active:scale-95 shadow-sm ${
                             isAnimating
-                              ? 'bg-pink-400 scale-125 animate-pulse'
-                              : isSelected
-                              ? 'bg-pink-300 scale-110 shadow-lg ring-2 ring-pink-500'
+                              ? 'bg-amber-300 scale-125 animate-pulse'
+                              : isSelected || selectedPowerup
+                              ? 'bg-rose-300 scale-105 shadow-lg ring-2 ring-rose-500'
                               : cell === '💫'
-                              ? 'bg-gray-300 opacity-50'
-                              : 'bg-white active:bg-gray-50 active:scale-105'
-                          } ${animating && !isSelected ? 'opacity-75' : ''}`}
+                              ? 'bg-stone-200 opacity-50'
+                              : 'bg-white active:bg-rose-50'
+                          }`}
                         >
                           {cell === '💫' ? '✨' : cell}
               </button>
@@ -4615,17 +5580,16 @@ const BondPetGame = () => {
             
             <div className="grid grid-cols-2 gap-3">
               <button onClick={() => setGameState('pet')}
-                className="bg-gray-500 text-white py-3 rounded-xl font-semibold active:bg-gray-600 transition-all">
+                className="ctrl-btn bg-stone-700 text-white py-3">
                 ← Back
               </button>
               <button onClick={completePuzzle}
-                className="bg-pink-500 text-white py-3 rounded-xl font-semibold active:bg-pink-600 flex items-center justify-center gap-2 transition-all">
-                <Trophy size={20} /> {score >= targetScore ? 'Victory! 💕' : 'End'}
+                className="ctrl-btn bg-gradient-to-r from-rose-500 to-orange-500 text-white py-3 flex items-center justify-center gap-2">
+                <Trophy size={20} /> {score >= targetScore ? 'Victory!' : 'End'}
               </button>
             </div>
-          </div>
-        </div>
-      </div>
+        </GameCard>
+      </GameShell>
     );
   }
 
@@ -4717,43 +5681,39 @@ const BondPetGame = () => {
     };
 
     return (
-      <div className="min-h-screen bg-gradient-to-br from-red-200 via-orange-200 to-pink-200 p-4">
-        <div className="max-w-md mx-auto">
-          <div className="bg-white rounded-2xl p-4 shadow-lg">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-2xl font-bold text-red-600">🧱 Tetris</h2>
-              <button onClick={() => setGameState('brickGames')}
-                className="bg-gray-500 text-white px-3 py-2 rounded-lg font-semibold active:bg-gray-600 text-sm">
-                ← Back
-              </button>
-            </div>
+      <GameShell bgClass="bg-gradient-to-br from-violet-700 via-fuchsia-600 to-orange-500" maxWidth="max-w-md">
+        <GameCard className="!bg-gradient-to-b from-slate-900 to-slate-800 !border-fuchsia-400/40 text-white">
+          <GameHeader title="Tetris" titleClass="text-fuchsia-200" onBack={() => setGameState('brickGames')} />
 
-            <div className="grid grid-cols-3 gap-2 mb-4 text-center">
-              <div>
-                <div className="text-xl font-bold text-purple-600">{tetrisScore}</div>
-                <div className="text-xs text-gray-600">Score</div>
-              </div>
-              <div>
-                <div className="text-xl font-bold text-blue-600">{tetrisLevel}</div>
-                <div className="text-xs text-gray-600">Level</div>
-              </div>
-              <div>
-                <div className="text-xl font-bold text-green-600">{tetrisLines}</div>
-                <div className="text-xs text-gray-600">Lines</div>
+            <div className="grid grid-cols-3 gap-2 mb-4">
+              <StatPill label="Score" value={tetrisScore} tone="bg-fuchsia-500/30 text-fuchsia-100" />
+              <StatPill label="Level" value={tetrisLevel} tone="bg-cyan-500/30 text-cyan-100" />
+              <div className="rounded-2xl px-3 py-2.5 text-center bg-amber-500/20 text-amber-100 shadow-sm">
+                <div className="text-[10px] uppercase tracking-wider opacity-75 font-bold mb-1">Next</div>
+                <div className="inline-block bg-black/50 p-1 rounded-lg border border-white/10">
+                  {(tetrisNextPiece?.shape || [[1]]).map((row, i) => (
+                    <div key={i} className="flex">
+                      {row.map((cell, j) => (
+                        <div key={j} className="w-3 h-3 rounded-[2px]"
+                          style={{ backgroundColor: cell ? (tetrisNextPiece?.color || '#888') : 'transparent' }} />
+                      ))}
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
 
             {tetrisGameOver ? (
-              <div className="text-center mb-4 p-4 bg-red-50 rounded-lg">
-                <div className="text-2xl font-bold mb-2">Game Over!</div>
-                <div className="text-green-600 font-semibold mb-4">+{Math.floor(tetrisScore / 10)} Coins! 🪙</div>
+              <div className="text-center mb-4 p-4 rounded-2xl bg-rose-500/20 border border-rose-300/40">
+                <div className="game-title text-2xl font-bold mb-2 text-rose-100">Game Over!</div>
+                <div className="text-lime-300 font-bold mb-4">+{Math.floor(tetrisScore / 10)} Coins</div>
                 <div className="grid grid-cols-2 gap-2">
                   <button onClick={initializeTetris}
-                    className="bg-blue-500 text-white py-2 rounded-lg font-semibold active:bg-blue-600">
+                    className="ctrl-btn bg-cyan-500 text-white py-2">
                     Play Again
                   </button>
                   <button onClick={completeGame}
-                    className="bg-green-500 text-white py-2 rounded-lg font-semibold active:bg-green-600">
+                    className="ctrl-btn bg-lime-500 text-lime-950 py-2">
                     Collect Rewards
                   </button>
                 </div>
@@ -4761,18 +5721,19 @@ const BondPetGame = () => {
             ) : (
               <>
                 {tetrisPaused && (
-                  <div className="text-center mb-4 p-4 bg-yellow-50 rounded-lg">
-                    <div className="text-xl font-bold">⏸ Paused</div>
+                  <div className="text-center mb-3 p-3 rounded-xl bg-amber-400/20 border border-amber-300/30">
+                    <div className="game-title text-xl font-bold text-amber-200">Paused</div>
                   </div>
                 )}
-                <div className="bg-gray-900 rounded-lg p-2 mb-4 mx-auto" style={{ width: 'fit-content' }}>
+                <div className="rounded-xl p-2 mb-4 mx-auto border-2 border-fuchsia-400/50 shadow-lg shadow-fuchsia-900/40"
+                  style={{ width: 'fit-content', background: '#0b1020' }}>
                   {displayBoard.map((row, i) => (
                     <div key={i} className="flex">
                   {row.map((cell, j) => (
                         <div
                           key={`${i}-${j}`}
-                          className="w-6 h-6 sm:w-7 sm:h-7 border border-gray-700"
-                          style={{ backgroundColor: cell || '#111' }}
+                          className="w-6 h-6 sm:w-7 sm:h-7 rounded-[2px] border border-slate-800/80"
+                          style={{ backgroundColor: cell || '#151b2e', boxShadow: cell ? 'inset 0 0 6px rgba(255,255,255,0.25)' : undefined }}
                         />
                       ))}
                     </div>
@@ -4781,33 +5742,26 @@ const BondPetGame = () => {
 
                 <div className="grid grid-cols-3 gap-2 mb-2">
                   <button onClick={() => moveTetrisPiece('left')}
-                    className="bg-blue-500 text-white py-3 rounded-lg font-bold active:bg-blue-600 min-h-[48px]">
-                    ←
-                  </button>
+                    className="ctrl-btn bg-cyan-500 text-white py-3">←</button>
                   <button onClick={() => moveTetrisPiece('rotate')}
-                    className="bg-purple-500 text-white py-3 rounded-lg font-bold active:bg-purple-600 min-h-[48px]">
-                    ↻
-                  </button>
+                    className="ctrl-btn bg-fuchsia-500 text-white py-3">↻</button>
                   <button onClick={() => moveTetrisPiece('right')}
-                    className="bg-blue-500 text-white py-3 rounded-lg font-bold active:bg-blue-600 min-h-[48px]">
-                    →
-                  </button>
+                    className="ctrl-btn bg-cyan-500 text-white py-3">→</button>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <button onClick={() => moveTetrisPiece('down')}
-                    className="bg-orange-500 text-white py-3 rounded-lg font-bold active:bg-orange-600 min-h-[48px]">
-                    ↓ Down
-                  </button>
-                  <button onClick={() => setTetrisPaused(!tetrisPaused)}
-                    className="bg-yellow-500 text-white py-3 rounded-lg font-bold active:bg-yellow-600 min-h-[48px]">
-                    ⏸ {tetrisPaused ? 'Resume' : 'Pause'}
-                  </button>
+                    className="ctrl-btn bg-orange-500 text-white py-3">↓ Soft</button>
+                  <button onClick={() => moveTetrisPiece('hardDrop')}
+                    className="ctrl-btn bg-rose-500 text-white py-3">⬇ Drop</button>
                 </div>
+                <button onClick={() => setTetrisPaused(!tetrisPaused)}
+                  className="ctrl-btn w-full mt-2 bg-amber-400 text-amber-950 py-3">
+                  {tetrisPaused ? 'Resume' : 'Pause'}
+                </button>
               </>
             )}
-          </div>
-        </div>
-      </div>
+        </GameCard>
+      </GameShell>
     );
   }
 
@@ -4820,27 +5774,25 @@ const BondPetGame = () => {
     };
 
     return (
-      <div className="min-h-screen bg-gradient-to-br from-green-200 via-teal-200 to-blue-200 p-4">
-        <div className="max-w-md mx-auto">
-          <div className="bg-white rounded-2xl p-4 shadow-lg">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-2xl font-bold text-green-600">🐍 Snake</h2>
-              <button onClick={() => { setSnakeRunning(false); setGameState('brickGames'); }}
-                className="bg-gray-500 text-white px-3 py-2 rounded-lg font-semibold active:bg-gray-600 text-sm">
-                ← Back
-              </button>
-            </div>
-            <div className="text-center mb-3">
-              <div className="text-xl font-bold text-green-600">Score: {snakeScore}</div>
+      <GameShell bgClass="bg-gradient-to-br from-lime-400 via-emerald-500 to-teal-700" maxWidth="max-w-md">
+        <GameCard className="!bg-gradient-to-b from-lime-50 to-teal-50">
+          <GameHeader title="Snake" titleClass="text-emerald-800" onBack={() => { setSnakeRunning(false); setGameState('brickGames'); }} />
+            <div className="grid grid-cols-2 gap-2 mb-3">
+              <StatPill label="Score" value={snakeScore} tone="bg-emerald-200 text-emerald-950" />
+              <StatPill label="Status" value={snakeMessage || (snakeRunning ? 'Go!' : 'Ready')} tone="bg-teal-200 text-teal-950" />
             </div>
             {snakeGameOver && (
-              <div className="text-center p-3 bg-red-50 rounded-lg mb-3">
-                <p className="font-bold text-red-600">Game Over!</p>
-                <p className="text-sm text-green-700">+{Math.floor(snakeScore / 5) + 5} coins ready</p>
+              <div className="text-center p-3 rounded-2xl bg-rose-100 border-2 border-rose-300 mb-3">
+                <p className="font-extrabold text-rose-700 game-title">Game Over!</p>
+                <p className="text-sm text-emerald-800 font-bold">+{Math.floor(snakeScore / 5) + 5} coins ready</p>
               </div>
             )}
-            <div className="grid gap-0.5 bg-gray-800 p-2 rounded-lg mx-auto mb-4"
-              style={{ gridTemplateColumns: `repeat(${SNAKE_SIZE}, minmax(0, 1fr))`, maxWidth: 360 }}>
+            <div className="grid gap-0.5 p-2.5 rounded-2xl mx-auto mb-4 shadow-inner border-4 border-emerald-700"
+              style={{
+                gridTemplateColumns: `repeat(${SNAKE_SIZE}, minmax(0, 1fr))`,
+                maxWidth: 360,
+                background: 'linear-gradient(160deg,#064e3b,#022c22)'
+              }}>
               {Array.from({ length: SNAKE_SIZE * SNAKE_SIZE }).map((_, i) => {
                 const x = i % SNAKE_SIZE;
                 const y = Math.floor(i / SNAKE_SIZE);
@@ -4849,30 +5801,32 @@ const BondPetGame = () => {
                 const isFood = snakeGame?.food?.x === x && snakeGame?.food?.y === y;
                 return (
                   <div key={i} className={`aspect-square rounded-sm ${
-                    isHead ? 'bg-green-400' : isBody ? 'bg-green-600' : isFood ? 'bg-red-400' : 'bg-gray-700'
+                    isHead ? 'bg-lime-300 shadow animate-float-soft' :
+                    isBody ? 'bg-emerald-400' :
+                    isFood ? 'bg-rose-400 animate-pulse' :
+                    'bg-emerald-950/50'
                   }`} />
                 );
               })}
             </div>
-            <div className="grid grid-cols-3 gap-2 mb-3 max-w-[200px] mx-auto">
+            <div className="grid grid-cols-3 gap-2 mb-3 max-w-[220px] mx-auto">
               <div />
-              <button onClick={() => setSnakeDirection('up')} className="bg-green-500 text-white py-3 rounded-lg font-bold min-h-[48px]">↑</button>
+              <button onClick={() => setSnakeDirection('up')} className="ctrl-btn bg-emerald-500 text-white py-3">↑</button>
               <div />
-              <button onClick={() => setSnakeDirection('left')} className="bg-green-500 text-white py-3 rounded-lg font-bold min-h-[48px]">←</button>
-              <button onClick={() => setSnakeDirection('down')} className="bg-green-500 text-white py-3 rounded-lg font-bold min-h-[48px]">↓</button>
-              <button onClick={() => setSnakeDirection('right')} className="bg-green-500 text-white py-3 rounded-lg font-bold min-h-[48px]">→</button>
+              <button onClick={() => setSnakeDirection('left')} className="ctrl-btn bg-emerald-500 text-white py-3">←</button>
+              <button onClick={() => setSnakeDirection('down')} className="ctrl-btn bg-emerald-500 text-white py-3">↓</button>
+              <button onClick={() => setSnakeDirection('right')} className="ctrl-btn bg-emerald-500 text-white py-3">→</button>
             </div>
             <div className="grid grid-cols-2 gap-2">
-              <button onClick={initializeSnake} className="bg-teal-500 text-white py-3 rounded-lg font-semibold min-h-[48px]">
+              <button onClick={initializeSnake} className="ctrl-btn bg-teal-500 text-white py-3">
                 {snakeRunning ? 'Restart' : 'Start'}
               </button>
-              <button onClick={completeSnake} className="bg-yellow-500 text-white py-3 rounded-lg font-semibold min-h-[48px]">
+              <button onClick={completeSnake} className="ctrl-btn bg-amber-400 text-amber-950 py-3">
                 Collect Rewards
               </button>
             </div>
-          </div>
-        </div>
-      </div>
+        </GameCard>
+      </GameShell>
     );
   }
 
@@ -5209,6 +6163,19 @@ const BondPetGame = () => {
                       onMouseDown={() => onCellDown(i, j)}
                       onMouseEnter={() => onCellEnter(i, j)}
                       onTouchStart={(e) => { e.preventDefault(); onCellDown(i, j); }}
+                      onTouchMove={(e) => {
+                        e.preventDefault();
+                        const t = e.touches[0];
+                        const el = document.elementFromPoint(t.clientX, t.clientY);
+                        const btn = el?.closest?.('button[data-ws]');
+                        if (!btn) return;
+                        const r = Number(btn.getAttribute('data-r'));
+                        const c = Number(btn.getAttribute('data-c'));
+                        if (!Number.isNaN(r) && !Number.isNaN(c)) onCellEnter(r, c);
+                      }}
+                      data-ws="1"
+                      data-r={i}
+                      data-c={j}
                       className={`w-8 h-8 sm:w-10 sm:h-10 rounded flex items-center justify-center text-sm sm:text-base font-bold border ${
                         found ? 'bg-green-300 border-green-500' :
                         selected ? 'bg-yellow-300 border-yellow-500' :
@@ -5419,277 +6386,195 @@ const BondPetGame = () => {
   // Arcade menu
   if (gameState === 'arcadeGames') {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-yellow-200 via-orange-200 to-red-200 p-4">
-        <div className="max-w-4xl mx-auto">
-          <div className="bg-white rounded-2xl p-6 shadow-lg">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-3xl font-bold text-yellow-600">👾 Arcade</h2>
-              <button onClick={() => setGameState('pet')}
-                className="bg-gray-500 text-white px-4 py-2 rounded-lg font-semibold">
-                ← Back
-              </button>
-            </div>
+      <GameShell bgClass="bg-gradient-to-br from-amber-400 via-orange-500 to-rose-600" maxWidth="max-w-4xl">
+        <GameCard>
+          <GameHeader title="Arcade" titleClass="text-amber-800" onBack={() => setGameState('pet')} />
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="bg-gradient-to-br from-yellow-100 to-orange-100 rounded-xl p-6">
-                <h3 className="text-2xl font-bold mb-2">👻 Pac-Man</h3>
-                <p className="text-gray-600 mb-4 text-sm">Chomp dots and dodge the maze!</p>
+              <div className="menu-tile bg-gradient-to-br from-yellow-200 to-amber-300">
+                <h3 className="game-title text-2xl font-bold mb-2 text-amber-950">Pac-Man</h3>
+                <p className="text-amber-900/70 mb-4 text-sm font-semibold">Chomp dots and dodge ghosts!</p>
                 <button onClick={() => {
-                  setPacmanScore(0);
-                  setPacmanPos({ x: 14, y: 23 });
+                  initializePacman();
                   setGameState('pacman');
                 }}
-                  className="w-full bg-yellow-500 text-white py-3 rounded-lg font-semibold min-h-[48px]">
+                  className="ctrl-btn w-full bg-amber-500 text-white py-3">
                   Play Pac-Man
                 </button>
               </div>
-              <div className="bg-gradient-to-br from-blue-100 to-indigo-100 rounded-xl p-6">
-                <h3 className="text-2xl font-bold mb-2">🚀 Jetpack Joyride</h3>
-                <p className="text-gray-600 mb-4 text-sm">Fly as far as you can!</p>
+              <div className="menu-tile bg-gradient-to-br from-sky-200 to-cyan-300">
+                <h3 className="game-title text-2xl font-bold mb-2 text-sky-950">Jetpack Joyride</h3>
+                <p className="text-sky-900/70 mb-4 text-sm font-semibold">Fly as far as you can!</p>
                 <button onClick={() => {
                   setJetpackScore(0);
                   setJetpackGameOver(false);
+                  jetpackYRef.current = 200;
                   setJetpackY(200);
+                  setJetpackObstacles([]);
+                  handleJetpackFly(false);
                   setGameState('jetpack');
                 }}
-                  className="w-full bg-blue-500 text-white py-3 rounded-lg font-semibold min-h-[48px]">
+                  className="ctrl-btn w-full bg-sky-600 text-white py-3">
                   Play Jetpack
                 </button>
               </div>
             </div>
-          </div>
-        </div>
-      </div>
+        </GameCard>
+      </GameShell>
     );
   }
 
   // Pac-Man Game
   if (gameState === 'pacman') {
-    const pacmanMaze = Array(28).fill(null).map(() => Array(31).fill(0));
-    
-    // Simple maze pattern
-    for (let i = 0; i < 28; i++) {
-      for (let j = 0; j < 31; j++) {
-        if (i === 0 || i === 27 || j === 0 || j === 30) {
-          pacmanMaze[i][j] = 1; // Walls
-        } else if ((i === 1 || i === 26) && j > 0 && j < 30) {
-          pacmanMaze[i][j] = 2; // Dots
-        } else if (i > 1 && i < 26 && (j === 1 || j === 29)) {
-          pacmanMaze[i][j] = 2;
-        } else if (i % 3 === 0 && j % 5 === 0) {
-          pacmanMaze[i][j] = 2;
-        }
-      }
-    }
-
-    const movePacman = () => {
-      setPacmanPos(current => {
-        let newPos = { ...current };
-        if (pacmanDirection === 'up') newPos.y--;
-        else if (pacmanDirection === 'down') newPos.y++;
-        else if (pacmanDirection === 'left') newPos.x--;
-        else if (pacmanDirection === 'right') newPos.x++;
-        
-        // Check bounds
-        if (newPos.x < 0) newPos.x = 30;
-        if (newPos.x > 30) newPos.x = 0;
-        if (newPos.y < 0 || newPos.y > 27) return current;
-        
-        // Check if dot collected
-        if (pacmanMaze[newPos.y][newPos.x] === 2) {
-          setPacmanScore(prev => prev + 10);
-        }
-        
-        return newPos;
-      });
-    };
+    const maze = pacmanMaze.length ? pacmanMaze : createPacmanMaze();
+    const dotsLeft = maze.flat().filter(c => c === 2).length;
 
     const completePacman = () => {
-      const coinsEarned = Math.floor(pacmanScore / 10);
-      setGameData(prev => ({
-        ...prev,
-        coins: prev.coins + coinsEarned,
-        pet: { ...prev.pet, happiness: Math.min(100, prev.pet.happiness + 5) },
-        sharedProgress: Math.min(100, prev.sharedProgress + 5)
-      }));
+      awardMiniGameRewards(Math.floor(pacmanScore / 10) + 10, 3, 1);
       setGameState('arcadeGames');
     };
 
     return (
-      <div className="min-h-screen bg-gradient-to-br from-yellow-200 via-orange-200 to-red-200 p-4">
-        <div className="max-w-2xl mx-auto">
-          <div className="bg-white rounded-2xl p-4 shadow-lg">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-2xl font-bold text-yellow-600">👻 Pac-Man</h2>
-              <button onClick={() => setGameState('arcadeGames')}
-                className="bg-gray-500 text-white px-3 py-2 rounded-lg font-semibold active:bg-gray-600 text-sm">
-                ← Back
-              </button>
+      <GameShell bgClass="bg-gradient-to-br from-slate-900 via-blue-950 to-black" maxWidth="max-w-2xl">
+        <GameCard className="!bg-gradient-to-b from-slate-900 to-slate-950 !border-yellow-400/40 text-white">
+          <GameHeader title="Pac-Man" titleClass="text-yellow-300" onBack={() => setGameState('arcadeGames')} />
+
+            <div className="grid grid-cols-3 gap-2 mb-4">
+              <StatPill label="Score" value={pacmanScore} tone="bg-yellow-400/20 text-yellow-200" />
+              <StatPill label="Lives" value={pacmanLives} tone="bg-rose-400/20 text-rose-200" />
+              <StatPill label="Dots" value={dotsLeft} tone="bg-sky-400/20 text-sky-200" />
             </div>
 
-            <div className="grid grid-cols-3 gap-2 mb-4 text-center">
-              <div>
-                <div className="text-xl font-bold text-yellow-600">{pacmanScore}</div>
-                <div className="text-xs text-gray-600">Score</div>
-              </div>
-              <div>
-                <div className="text-xl font-bold text-red-600">{pacmanLives}</div>
-                <div className="text-xs text-gray-600">Lives</div>
-              </div>
-              <div>
-                <div className="text-xl font-bold text-blue-600">Level {pacmanLevel}</div>
-                <div className="text-xs text-gray-600">Level</div>
-              </div>
-            </div>
+            {pacmanGameOver && (
+              <div className="text-center p-3 rounded-xl bg-rose-500/20 border border-rose-400/40 mb-3 font-bold text-rose-200">Game Over!</div>
+            )}
+            {dotsLeft === 0 && !pacmanGameOver && (
+              <div className="text-center p-3 rounded-xl bg-lime-500/20 border border-lime-400/40 mb-3 font-bold text-lime-200">All dots cleared!</div>
+            )}
 
-            <div className="bg-black rounded-lg p-2 mb-4" style={{ width: 'fit-content', margin: '0 auto' }}>
-              {pacmanMaze.map((row, i) => (
+            <div className="rounded-xl p-2 mb-4 overflow-x-auto border-2 border-blue-500/60 shadow-lg shadow-blue-900/50"
+              style={{ width: 'fit-content', margin: '0 auto', background: '#000814' }}>
+              {maze.map((row, i) => (
                 <div key={i} className="flex">
-                  {row.map((cell, j) => (
-                    <div
-                      key={`${i}-${j}`}
-                      className="w-4 h-4 sm:w-5 sm:h-5 flex items-center justify-center"
-                    >
-                      {pacmanPos.x === j && pacmanPos.y === i ? (
-                        <span className="text-yellow-400 text-xl">👻</span>
-                      ) : cell === 1 ? (
-                        <span className="text-blue-600">█</span>
-                      ) : cell === 2 ? (
-                        <span className="text-yellow-300 text-xs">•</span>
-                      ) : (
-                        ' '
-                      )}
-                    </div>
-                  ))}
+                  {row.map((cell, j) => {
+                    const isPac = pacmanPos.x === j && pacmanPos.y === i;
+                    const ghost = pacmanGhosts.find(g => g.x === j && g.y === i);
+                    return (
+                      <div key={`${i}-${j}`} className="w-4 h-4 sm:w-5 sm:h-5 flex items-center justify-center text-xs">
+                        {isPac ? (
+                          <span className="w-3 h-3 rounded-full bg-yellow-300 shadow shadow-yellow-300/80" />
+                        ) : ghost ? ghost.color : cell === 1 ? (
+                          <span className="w-full h-full bg-blue-600 rounded-[2px]" />
+                        ) : cell === 2 ? (
+                          <span className="w-1 h-1 rounded-full bg-yellow-200" />
+                        ) : ''}
+                      </div>
+                    );
+                  })}
                 </div>
               ))}
             </div>
             
-            <div className="grid grid-cols-4 gap-2 mb-2">
-              <div></div>
-              <button onClick={() => setPacmanDirection('up')}
-                className="bg-yellow-500 text-white py-3 rounded-lg font-bold active:bg-yellow-600 min-h-[48px]">
-                ↑
-              </button>
-              <div></div>
-              <div></div>
-              <button onClick={() => setPacmanDirection('left')}
-                className="bg-yellow-500 text-white py-3 rounded-lg font-bold active:bg-yellow-600 min-h-[48px]">
-                ←
-              </button>
-              <button onClick={() => setPacmanDirection('down')}
-                className="bg-yellow-500 text-white py-3 rounded-lg font-bold active:bg-yellow-600 min-h-[48px]">
-                ↓
-              </button>
-              <button onClick={() => setPacmanDirection('right')}
-                className="bg-yellow-500 text-white py-3 rounded-lg font-bold active:bg-yellow-600 min-h-[48px]">
-                →
-            </button>
+            <div className="grid grid-cols-3 gap-2 mb-2 max-w-[220px] mx-auto">
+              <div />
+              <button onClick={() => { pacmanDirRef.current = 'up'; setPacmanDirection('up'); }}
+                className="ctrl-btn bg-yellow-400 text-slate-900 py-3">↑</button>
+              <div />
+              <button onClick={() => { pacmanDirRef.current = 'left'; setPacmanDirection('left'); }}
+                className="ctrl-btn bg-yellow-400 text-slate-900 py-3">←</button>
+              <button onClick={() => { pacmanDirRef.current = 'down'; setPacmanDirection('down'); }}
+                className="ctrl-btn bg-yellow-400 text-slate-900 py-3">↓</button>
+              <button onClick={() => { pacmanDirRef.current = 'right'; setPacmanDirection('right'); }}
+                className="ctrl-btn bg-yellow-400 text-slate-900 py-3">→</button>
             </div>
 
-            <button onClick={completePacman}
-              className="w-full bg-green-500 text-white py-3 rounded-lg font-semibold active:bg-green-600 min-h-[48px]">
-              Collect Rewards (+{Math.floor(pacmanScore / 10)} coins)
-            </button>
-          </div>
-        </div>
-      </div>
+            <div className="grid grid-cols-2 gap-2">
+              <button onClick={initializePacman} className="ctrl-btn bg-amber-500 text-white py-3">Restart</button>
+              <button onClick={completePacman} className="ctrl-btn bg-lime-400 text-lime-950 py-3">
+                Collect (+{Math.floor(pacmanScore / 10) + 10})
+              </button>
+            </div>
+        </GameCard>
+      </GameShell>
     );
   }
 
   // Jetpack Joyride Game
   if (gameState === 'jetpack') {
-
     const completeJetpack = () => {
-      const coinsEarned = Math.floor(jetpackScore / 5);
-      setGameData(prev => ({
-        ...prev,
-        coins: prev.coins + coinsEarned,
-        pet: { ...prev.pet, happiness: Math.min(100, prev.pet.happiness + 5) },
-        sharedProgress: Math.min(100, prev.sharedProgress + 5)
-      }));
+      awardMiniGameRewards(Math.floor(jetpackScore / 5) + 5, 3, 1);
       setGameState('arcadeGames');
     };
 
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-200 via-indigo-200 to-purple-200 p-4">
-        <div className="max-w-md mx-auto">
-          <div className="bg-white rounded-2xl p-4 shadow-lg">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-2xl font-bold text-blue-600">🚀 Jetpack Joyride</h2>
-              <button onClick={() => setGameState('arcadeGames')}
-                className="bg-gray-500 text-white px-3 py-2 rounded-lg font-semibold active:bg-gray-600 text-sm">
-                ← Back
-              </button>
-            </div>
+      <GameShell bgClass="bg-gradient-to-br from-sky-500 via-indigo-600 to-slate-900" maxWidth="max-w-md">
+        <GameCard className="!bg-gradient-to-b from-sky-50 to-indigo-100">
+          <GameHeader title="Jetpack" titleClass="text-sky-900" onBack={() => setGameState('arcadeGames')} />
 
-            <div className="text-center mb-4">
-              <div className="text-2xl font-bold text-blue-600">Score: {jetpackScore}</div>
-              <div className="text-sm text-gray-600">Distance: {jetpackScore}m</div>
+            <div className="grid grid-cols-2 gap-2 mb-4">
+              <StatPill label="Score" value={jetpackScore} tone="bg-sky-200 text-sky-950" />
+              <StatPill label="Status" value={jetpackFlying ? 'Flying!' : 'Hold fly'} tone="bg-indigo-200 text-indigo-950" />
             </div>
 
             {jetpackGameOver ? (
-              <div className="text-center p-6 bg-red-50 rounded-lg mb-4">
-                <div className="text-2xl font-bold mb-2">Game Over! 💥</div>
-                <div className="text-green-600 font-semibold mb-4">+{Math.floor(jetpackScore / 5)} Coins Earned! 🪙</div>
+              <div className="text-center p-5 rounded-2xl bg-rose-100 border-2 border-rose-300 mb-4">
+                <div className="game-title text-2xl font-bold mb-2 text-rose-800">Game Over!</div>
+                <div className="text-emerald-700 font-bold mb-4">+{Math.floor(jetpackScore / 5) + 5} coins</div>
                 <div className="grid grid-cols-2 gap-2">
                   <button onClick={() => {
                     setJetpackScore(0);
+                    jetpackYRef.current = 200;
                     setJetpackY(200);
                     setJetpackObstacles([]);
                     setJetpackGameOver(false);
+                    handleJetpackFly(false);
                   }}
-                    className="bg-blue-500 text-white py-2 rounded-lg font-semibold active:bg-blue-600">
+                    className="ctrl-btn bg-sky-500 text-white py-2">
                     Play Again
                   </button>
                   <button onClick={completeJetpack}
-                    className="bg-green-500 text-white py-2 rounded-lg font-semibold active:bg-green-600">
+                    className="ctrl-btn bg-lime-500 text-lime-950 py-2">
                     Collect Rewards
                   </button>
                 </div>
               </div>
             ) : (
               <>
-                <div className="relative bg-gradient-to-b from-sky-400 to-blue-500 rounded-lg h-96 mb-4 overflow-hidden border-4 border-gray-800">
-                  {/* Player */}
-                  <div
-                    className="absolute left-12 transition-all duration-75"
-                    style={{ top: `${jetpackY}px` }}
-                  >
-                    <div className="text-4xl">🚀</div>
+                <div className="relative rounded-2xl h-96 mb-4 overflow-hidden border-4 border-sky-700 shadow-xl"
+                  style={{ background: 'linear-gradient(180deg,#7dd3fc 0%,#38bdf8 40%,#0369a1 100%)' }}>
+                  <div className="absolute inset-x-0 top-0 h-16 opacity-40"
+                    style={{ background: 'repeating-linear-gradient(90deg,transparent,transparent 40px,rgba(255,255,255,0.25) 40px,rgba(255,255,255,0.25) 42px)' }} />
+                  <div className="absolute left-12 animate-float-soft" style={{ top: `${jetpackY}px` }}>
+                    <div className="text-4xl drop-shadow-lg">🚀</div>
+                    {jetpackFlying && <div className="text-center text-orange-300 text-xs -mt-1">🔥</div>}
                   </div>
-
-                  {/* Obstacles */}
                   {jetpackObstacles.map((obs, i) => (
                     <div key={i}>
-                      <div
-                        className="absolute bg-gray-800 w-12"
-                        style={{ left: `${obs.x}px`, top: '0px', height: `${obs.yTop}px` }}
-                      />
-                      <div
-                        className="absolute bg-gray-800 w-12"
-                        style={{ left: `${obs.x}px`, bottom: '0px', height: `${400 - obs.yBottom}px` }}
-                      />
+                      <div className="absolute w-12 rounded-b-lg bg-gradient-to-b from-slate-600 to-slate-900 border border-slate-500"
+                        style={{ left: `${obs.x}px`, top: 0, height: `${obs.yTop}px` }} />
+                      <div className="absolute w-12 rounded-t-lg bg-gradient-to-t from-slate-600 to-slate-900 border border-slate-500"
+                        style={{ left: `${obs.x}px`, top: `${obs.yBottom}px`, bottom: 0 }} />
                     </div>
                   ))}
                 </div>
-
-                <div className="text-center mb-4">
-                  <p className="text-sm text-gray-600 mb-2">Tap/Hold to fly up! Release to fall.</p>
-                  <button
-                    onMouseDown={() => handleJetpackKey(true)}
-                    onMouseUp={() => handleJetpackKey(false)}
-                    onTouchStart={() => handleJetpackKey(true)}
-                    onTouchEnd={() => handleJetpackKey(false)}
-                    className="w-full bg-blue-500 text-white py-4 rounded-lg font-bold active:bg-blue-600 text-lg min-h-[56px]"
-                  >
-                    🚀 FLY UP
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  onMouseDown={() => handleJetpackFly(true)}
+                  onMouseUp={() => handleJetpackFly(false)}
+                  onMouseLeave={() => handleJetpackFly(false)}
+                  onTouchStart={(e) => { e.preventDefault(); handleJetpackFly(true); }}
+                  onTouchEnd={() => handleJetpackFly(false)}
+                  className={`ctrl-btn w-full py-5 text-lg select-none ${
+                    jetpackFlying
+                      ? 'bg-gradient-to-r from-orange-400 to-rose-500 text-white'
+                      : 'bg-gradient-to-r from-sky-500 to-indigo-500 text-white'
+                  }`}
+                >
+                  {jetpackFlying ? 'Flying…' : 'Hold to Fly'}
+                </button>
               </>
             )}
-          </div>
-        </div>
-      </div>
+        </GameCard>
+      </GameShell>
     );
   }
 
@@ -5697,180 +6582,156 @@ const BondPetGame = () => {
   if (gameState === 'checkers') {
     if (checkersBoard.length === 0) initializeCheckers();
 
-    const handleCheckersClick = (row, col) => {
-      if (checkersWinner) return;
-      
-      if (!checkersSelected) {
-        if (checkersBoard[row][col] && checkersBoard[row][col].type === checkersPlayer) {
-          setCheckersSelected({ row, col });
-        }
-      } else {
-        // Move piece
-        const newBoard = checkersBoard.map(r => [...r]);
-        const piece = newBoard[checkersSelected.row][checkersSelected.col];
-        const rowDiff = row - checkersSelected.row;
-        const colDiff = Math.abs(col - checkersSelected.col);
-        
-        if (Math.abs(rowDiff) === 1 && colDiff === 1) {
-          // Regular move
-          newBoard[row][col] = piece;
-          newBoard[checkersSelected.row][checkersSelected.col] = null;
-          setCheckersBoard(newBoard);
-          setCheckersSelected(null);
-          setCheckersPlayer(checkersPlayer === 'red' ? 'black' : 'red');
-        } else if (Math.abs(rowDiff) === 2 && colDiff === 2) {
-          // Jump move
-          const jumpedRow = checkersSelected.row + rowDiff / 2;
-          const jumpedCol = checkersSelected.col + (col - checkersSelected.col) / 2;
-          if (newBoard[jumpedRow][jumpedCol] && newBoard[jumpedRow][jumpedCol].type !== checkersPlayer) {
-            newBoard[row][col] = piece;
-            newBoard[checkersSelected.row][checkersSelected.col] = null;
-            newBoard[jumpedRow][jumpedCol] = null;
-            setCheckersBoard(newBoard);
-            setCheckersSelected(null);
-            setCheckersPlayer(checkersPlayer === 'red' ? 'black' : 'red');
-          }
-        } else {
-          setCheckersSelected(null);
-        }
-      }
-    };
-
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-200 via-pink-200 to-indigo-200 p-4">
-        <div className="max-w-2xl mx-auto">
-          <div className="bg-white rounded-2xl p-4 shadow-lg">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-2xl font-bold text-purple-600">⚫ Checkers</h2>
-              <button onClick={() => setGameState('boardGames')}
-                className="bg-gray-500 text-white px-3 py-2 rounded-lg font-semibold active:bg-gray-600 text-sm">
-                ← Back
-              </button>
-            </div>
+      <GameShell bgClass="bg-gradient-to-br from-emerald-600 via-teal-700 to-slate-900" maxWidth="max-w-lg">
+        <GameCard className="!bg-gradient-to-b from-emerald-50 to-lime-50">
+          <GameHeader title="Checkers" titleClass="text-emerald-900" onBack={() => setGameState('boardGames')} />
 
-            <div className="text-center mb-4">
-              <div className="text-lg font-semibold">
-                {checkersPlayer === 'red' ? '🔴 Red' : '⚫ Black'}'s Turn
+            {checkersWinner ? (
+              <div className="text-center mb-4 p-4 rounded-2xl bg-gradient-to-br from-lime-100 to-emerald-200 border-2 border-emerald-300">
+                <div className="game-title text-2xl font-bold mb-2 text-emerald-950">
+                  {checkersWinner === 'red' ? 'Red' : 'Black'} wins!
+                </div>
+                <p className="text-emerald-800 font-bold mb-3">+50 coins earned</p>
+                <button onClick={initializeCheckers}
+                  className="ctrl-btn bg-emerald-600 text-white px-6 py-3">
+                  Play Again
+                </button>
               </div>
-            </div>
+            ) : (
+              <div className="text-center mb-3 px-3 py-2 rounded-xl bg-emerald-100/80 border border-emerald-200">
+                <div className="text-lg font-extrabold text-emerald-950">
+                  {checkersPlayer === 'red' ? '🔴 Red' : '⚫ Black'}'s Turn
+                  {checkersJumping ? ' — keep jumping!' : ''}
+                </div>
+                <p className="text-sm text-emerald-800 mt-1 min-h-[20px] font-semibold">{checkersMessage}</p>
+              </div>
+            )}
 
-            <div className="bg-gray-800 rounded-lg p-2 mb-4 mx-auto" style={{ width: 'fit-content' }}>
+            <div className="rounded-2xl p-2 mb-4 mx-auto shadow-xl overflow-hidden"
+              style={{ width: 'fit-content', background: 'linear-gradient(145deg,#064e3b,#022c22)', border: '4px solid #10b981' }}>
               {checkersBoard.map((row, i) => (
                 <div key={i} className="flex">
-                  {row.map((cell, j) => (
-                    <button
-                      key={`${i}-${j}`}
-                      onClick={() => handleCheckersClick(i, j)}
-                      className={`w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center ${
-                        (i + j) % 2 === 0 ? 'bg-amber-200' : 'bg-amber-600'
-                      } ${checkersSelected?.row === i && checkersSelected?.col === j ? 'ring-4 ring-blue-500' : ''} active:scale-95`}
-                    >
-                      {cell ? (
-                        <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full ${
-                          cell.type === 'red' ? 'bg-red-600' : 'bg-gray-800'
-                        } ${cell.king ? 'ring-2 ring-yellow-400' : ''}`}></div>
-                      ) : null}
-                    </button>
-                  ))}
+                  {row.map((cell, j) => {
+                    const isTarget = checkersLegalTargets.some(t => t.row === i && t.col === j);
+                    const isSel = checkersSelected?.row === i && checkersSelected?.col === j;
+                    const isLight = (i + j) % 2 === 0;
+                    return (
+                      <button
+                        key={`${i}-${j}`}
+                        type="button"
+                        onClick={() => handleCheckersClick(i, j)}
+                        disabled={!!checkersWinner}
+                        className={`w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center relative ${
+                          isLight ? 'bg-emerald-100' : 'bg-emerald-800'
+                        } ${isSel ? 'ring-4 ring-cyan-300 z-10' : ''} ${isTarget ? 'ring-4 ring-amber-300 z-10' : ''}`}
+                      >
+                        {cell ? (
+                          <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center text-amber-200 text-xs font-bold shadow-lg ${
+                            cell.type === 'red'
+                              ? 'bg-gradient-to-br from-rose-400 to-red-700'
+                              : 'bg-gradient-to-br from-slate-600 to-slate-950'
+                          } ${cell.king ? 'ring-2 ring-amber-300' : ''}`}>
+                            {cell.king ? '★' : ''}
+                          </div>
+                        ) : isTarget ? (
+                          <span className="w-3 h-3 rounded-full bg-amber-300 shadow" />
+                        ) : null}
+                      </button>
+                    );
+                  })}
                 </div>
               ))}
             </div>
 
-            <button onClick={initializeCheckers}
-              className="w-full bg-purple-500 text-white py-3 rounded-lg font-semibold active:bg-purple-600 min-h-[48px]">
-              New Game
-            </button>
-          </div>
-        </div>
-      </div>
+            {!checkersWinner && (
+              <button onClick={initializeCheckers}
+                className="ctrl-btn w-full bg-gradient-to-r from-emerald-500 to-teal-500 text-white py-3">
+                New Game
+              </button>
+            )}
+        </GameCard>
+      </GameShell>
     );
   }
 
   // Mini Golf Game
   if (gameState === 'miniGolf') {
-    if (golfHole === 1 && golfScore === 0 && golfStrokes === 0) initializeMiniGolf();
-
     const takeStroke = () => {
-      setGolfStrokes(prev => prev + 1);
-      // Simple mini golf - ball moves toward hole
-      setGolfBallPos(prev => ({
-        x: prev.x + (Math.random() - 0.5) * 20,
-        y: prev.y + (Math.random() - 0.5) * 20
-      }));
-      
-      // Check if ball is in hole (simplified)
-      if (Math.random() < 0.1) {
-        const totalStrokes = golfStrokes + 1;
-        setGolfScore(prev => prev + totalStrokes);
-        setGolfHole(prev => prev + 1);
-        setGolfStrokes(0);
-        setGolfBallPos({ x: 50, y: 50 });
-        
-        if (golfHole >= 9) {
-          const coinsEarned = Math.floor(100 / golfScore);
-          setGameData(prev => ({
-            ...prev,
-            coins: prev.coins + coinsEarned,
-            gamesWon: prev.gamesWon + 1,
-            pet: { ...prev.pet, happiness: Math.min(100, prev.pet.happiness + 5) }
-          }));
-        }
-      }
+      if (golfMoving || golfDone) return;
+      const rad = (golfAim * Math.PI) / 180;
+      const power = golfPower / 18;
+      golfBallRef.current.vx = Math.cos(rad) * power;
+      golfBallRef.current.vy = Math.sin(rad) * power;
+      setGolfVel({ x: golfBallRef.current.vx, y: golfBallRef.current.vy });
+      setGolfStrokes(s => s + 1);
+      setGolfMoving(true);
     };
 
     return (
-      <div className="min-h-screen bg-gradient-to-br from-green-200 via-emerald-200 to-teal-200 p-4">
-        <div className="max-w-2xl mx-auto">
-          <div className="bg-white rounded-2xl p-4 shadow-lg">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-2xl font-bold text-green-600">⛳ Mini Golf</h2>
-              <button onClick={() => setGameState('boardGames')}
-                className="bg-gray-500 text-white px-3 py-2 rounded-lg font-semibold active:bg-gray-600 text-sm">
-                ← Back
-              </button>
+      <GameShell bgClass="bg-gradient-to-br from-lime-500 via-green-600 to-teal-800" maxWidth="max-w-2xl">
+        <GameCard className="!bg-gradient-to-b from-lime-50 to-emerald-50">
+          <GameHeader title="Mini Golf" titleClass="text-green-900" onBack={() => setGameState('boardGames')} />
+
+            <div className="grid grid-cols-3 gap-2 mb-4">
+              <StatPill label="Hole" value={`${Math.min(golfHole, 5)}/5`} tone="bg-lime-200 text-lime-950" />
+              <StatPill label="Strokes" value={golfStrokes} tone="bg-sky-200 text-sky-950" />
+              <StatPill label="Total" value={golfScore} tone="bg-amber-200 text-amber-950" />
             </div>
 
-            <div className="grid grid-cols-3 gap-2 mb-4 text-center">
-              <div>
-                <div className="text-xl font-bold text-green-600">Hole {golfHole}/9</div>
-              </div>
-              <div>
-                <div className="text-xl font-bold text-blue-600">{golfStrokes}</div>
-                <div className="text-xs text-gray-600">Strokes</div>
-              </div>
-              <div>
-                <div className="text-xl font-bold text-purple-600">{golfScore}</div>
-                <div className="text-xs text-gray-600">Total Score</div>
-              </div>
+            <div className="relative rounded-2xl h-72 mb-4 overflow-hidden border-4 border-emerald-800 shadow-xl"
+              style={{ background: 'linear-gradient(180deg,#86efac 0%,#22c55e 55%,#15803d 100%)' }}>
+              <div className="absolute inset-0 opacity-20"
+                style={{ backgroundImage: 'radial-gradient(circle at 20% 30%, #fff 1px, transparent 1px)', backgroundSize: '18px 18px' }} />
+              <div className="absolute w-10 h-10 bg-slate-950 rounded-full border-2 border-white shadow-lg"
+                style={{ left: `${golfHolePos.x}%`, top: `${golfHolePos.y}%`, transform: 'translate(-50%, -50%)' }} />
+              <div className="absolute w-1 h-8 bg-white origin-bottom"
+                style={{ left: `${golfHolePos.x}%`, top: `${golfHolePos.y - 8}%`, transform: 'translateX(-50%)' }} />
+              <div className="absolute w-4 h-3 bg-rose-500 rounded-sm"
+                style={{ left: `${golfHolePos.x + 1}%`, top: `${golfHolePos.y - 8}%` }} />
+              {!golfMoving && !golfDone && (
+                <div className="absolute h-1 bg-white/90 origin-left rounded"
+                  style={{
+                    left: `${golfBallPos.x}%`,
+                    top: `${golfBallPos.y}%`,
+                    transform: `rotate(${golfAim}deg)`,
+                    width: `${golfPower * 0.6}px`
+                  }} />
+              )}
+              <div className="absolute w-5 h-5 bg-white rounded-full border-2 border-slate-800 shadow-lg"
+                style={{ left: `${golfBallPos.x}%`, top: `${golfBallPos.y}%`, transform: 'translate(-50%, -50%)' }} />
             </div>
 
-            <div className="relative bg-gradient-to-b from-green-400 to-green-600 rounded-lg h-64 mb-4 border-4 border-gray-800">
-              {/* Hole */}
-              <div className="absolute bottom-4 right-4 w-12 h-12 bg-black rounded-full border-4 border-white"></div>
-              
-              {/* Ball */}
-              <div
-                className="absolute w-6 h-6 bg-white rounded-full border-2 border-gray-800 transition-all"
-                style={{ left: `${golfBallPos.x}%`, top: `${golfBallPos.y}%` }}
-              >
-                ⛳
+            {golfDone ? (
+              <div className="text-center p-4 rounded-2xl bg-lime-100 border-2 border-lime-300 mb-3">
+                <div className="game-title text-xl font-bold mb-2 text-green-900">Course complete!</div>
+                <div className="text-green-800 font-bold mb-3">Total strokes: {golfScore}</div>
+                <button onClick={initializeMiniGolf} className="ctrl-btn w-full bg-green-600 text-white py-3">Play Again</button>
               </div>
-            </div>
-
-            <button onClick={takeStroke}
-              className="w-full bg-green-500 text-white py-4 rounded-lg font-bold active:bg-green-600 min-h-[56px] text-lg">
-              ⛳ Take Stroke
-            </button>
-
-            {golfHole > 9 && (
-              <div className="mt-4 p-4 bg-green-50 rounded-lg text-center">
-                <div className="text-xl font-bold mb-2">🎉 Course Complete!</div>
-                <div className="text-green-600">Final Score: {golfScore}</div>
-              </div>
+            ) : (
+              <>
+                <div className="mb-3">
+                  <label className="text-sm font-bold text-green-900">Aim ({golfAim}°)</label>
+                  <input type="range" min={-180} max={180} value={golfAim} disabled={golfMoving}
+                    onChange={(e) => setGolfAim(Number(e.target.value))}
+                    className="w-full accent-emerald-600" />
+                </div>
+                <div className="mb-4">
+                  <label className="text-sm font-bold text-green-900">Power ({golfPower})</label>
+                  <input type="range" min={15} max={90} value={golfPower} disabled={golfMoving}
+                    onChange={(e) => setGolfPower(Number(e.target.value))}
+                    className="w-full accent-amber-500" />
+                </div>
+                <button onClick={takeStroke} disabled={golfMoving}
+                  className={`ctrl-btn w-full py-4 text-lg ${
+                    golfMoving ? 'bg-stone-300 text-stone-500' : 'bg-gradient-to-r from-lime-500 to-emerald-600 text-white'
+                  }`}>
+                  {golfMoving ? 'Ball rolling...' : 'Swing'}
+                </button>
+              </>
             )}
-          </div>
-        </div>
-      </div>
+        </GameCard>
+      </GameShell>
     );
   }
 
@@ -5938,16 +6799,25 @@ const BondPetGame = () => {
       setHangmanWord(word);
       setHangmanGuessed([]);
       setHangmanWrong(0);
+      setHangmanWon(false);
     };
 
     if (!hangmanWord) initializeHangman();
 
     const handleGuess = (letter) => {
-      if (hangmanGuessed.includes(letter)) return;
-      
-      setHangmanGuessed(prev => [...prev, letter]);
+      if (hangmanGuessed.includes(letter) || hangmanWon || hangmanWrong >= 6) return;
+      const nextGuessed = [...hangmanGuessed, letter];
+      setHangmanGuessed(nextGuessed);
+      let wrong = hangmanWrong;
       if (!hangmanWord.includes(letter)) {
-        setHangmanWrong(prev => prev + 1);
+        wrong = hangmanWrong + 1;
+        setHangmanWrong(wrong);
+      }
+      const won = hangmanWord.split('').every(l => nextGuessed.includes(l));
+      if (won) {
+        setHangmanWon(true);
+        awardMiniGameRewards(40, 3, 1);
+        setGameData(prev => ({ ...prev, gamesWon: (prev.gamesWon || 0) + 1 }));
       }
     };
 
@@ -5955,20 +6825,8 @@ const BondPetGame = () => {
       hangmanGuessed.includes(letter) ? letter : '_'
     ).join(' ');
 
-    const isWon = hangmanWord.split('').every(letter => hangmanGuessed.includes(letter));
+    const isWon = hangmanWon || hangmanWord.split('').every(letter => hangmanGuessed.includes(letter));
     const isLost = hangmanWrong >= 6;
-
-    if (isWon || isLost) {
-      const coinsEarned = isWon ? 40 : 10;
-      if (isWon) {
-        setGameData(prev => ({
-          ...prev,
-          coins: prev.coins + coinsEarned,
-          gamesWon: prev.gamesWon + 1,
-          pet: { ...prev.pet, happiness: Math.min(100, prev.pet.happiness + 5) }
-        }));
-      }
-    }
 
     return (
       <div className="min-h-screen bg-gradient-to-br from-red-200 via-pink-200 to-rose-200 p-4">
